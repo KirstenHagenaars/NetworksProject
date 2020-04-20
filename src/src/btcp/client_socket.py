@@ -21,6 +21,14 @@ class BTCPClientSocket(BTCPSocket):
     def send(self, data):
         pass
 
+    # Receives data for 1 segment, returns entire segment (array of bytes)
+    def create_segment(self, data):
+        pass
+
+    # Sends segment and does selective repeat, uses timer
+    def send_segment(self, data):
+        pass
+
     # Perform a handshake to terminate a connection
     def disconnect(self):
         pass

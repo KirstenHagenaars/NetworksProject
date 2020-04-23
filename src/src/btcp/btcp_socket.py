@@ -9,7 +9,7 @@ class BTCPSocket:
     @staticmethod
     def in_cksum(data):
         #should be array of 2 bytes
-        pass
+        return 0
 
     # Receives data for 1 segment (max 1008 bytes), and all other segment values
     # all parameters are in bytes, except for ACK, SYN and FIN, which are booleans

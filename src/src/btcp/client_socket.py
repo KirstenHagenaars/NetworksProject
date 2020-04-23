@@ -29,11 +29,29 @@ class BTCPClientSocket(BTCPSocket):
 
     # Send data originating from the application in a reliable way to the server
     def send(self, data):
-        # notice i put the create_segment function in btcp_socket, since server_socket will also use it
+        window = 0x00  # TODO change
+        num_segments = data / PAYLOAD_SIZE  # TODO look into slicing up bytes objects
+        for i in range(num_segments):
+            BTCPSocket.create_segment(self, 0x00, 0x00, False, False, False, window, data[i])  # TODO pass "self"
+        # for i in range(window):
+            # send_segment(data[i])
+            # advance the window
+        # while last ack not received
+            # advance the window
+            # send_segment(data[something])
+            # something++
         pass
 
     # Sends segment and does selective repeat, uses timer
     def send_segment(self, data):
+        # set timeout, nr_of_tries
+        # send data, decrease timeout and wait for ack
+        # if ack not received and timeout == 0 and nr_of_tries != 0:
+            # resend, restart timeout, nr_of_tries--
+        # if nr_of_tries == 0:
+            # print packet was lost or something, continue
+        # if ack received
+            # continue
         pass
 
     # Perform a handshake to terminate a connection

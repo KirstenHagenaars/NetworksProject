@@ -5,7 +5,10 @@
       <change beforePath="$PROJECT_DIR$/.idea/NetworksProject.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/NetworksProject.iml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/src/btcp/btcp_socket.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/src/btcp/btcp_socket.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/src/btcp/client_socket.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/src/btcp/client_socket.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/src/btcp/constants.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/src/btcp/constants.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/src/client_app.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/src/client_app.py" afterDir="false" />
     </list>
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
     <option name="SHOW_DIALOG" value="false" />

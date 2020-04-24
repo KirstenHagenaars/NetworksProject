@@ -1,22 +1,24 @@
 from btcp.constants import *
 
+
 class BTCPSocket:
     def __init__(self, window, timeout):
         self._window = window
         self._timeout = timeout
-   
+
     # Return the Internet checksum of data
     @staticmethod
     def in_cksum(data):
-        #should be array of 2 bytes
+        # should be array of 2 bytes
         pass
 
     # Receives data for 1 segment (max 1008 bytes), and all other segment values
     # all parameters are in bytes, except for ACK, SYN and FIN, which are booleans
     # returns entire segment (array of bytes)
     def create_segment(self, sequenceNr, ackNr, ACK, SYN, FIN, window, data):
-        # TODO determine how we want to represent flags, & implement
-        flags = 0x00
+        # Flags are represented as 0 0 0 0 0 ACK SYN FIN
+        flags = ACK*4+SYN*2+FIN*1
+        flags = flags.to_bytes(1, 'big')
 
         # Compute data length in bytes, should be 2 bytes
         dataLength = len(data)
@@ -27,7 +29,7 @@ class BTCPSocket:
             data += bytes(diff)
 
         # convert dataLength to 2 bytes
-        dataLength.to_bytes(2)
+        dataLength = dataLength.to_bytes(2, 'big')
 
         # create segment
         segment = sequenceNr + ackNr + [flags] + [window] + dataLength + [0x00] + data
@@ -40,3 +42,8 @@ class BTCPSocket:
         segment[9] = checksum[1]
 
         return segment
+
+    # Takes array of 2 bytes and increments its value by 1, useful for sequenceNr
+    def increment_bytes(self, bytes):
+        increasedValue = int.from_bytes(bytes, 'big') + 1
+        return increasedValue.to_bytes(2, 'big')

@@ -9,8 +9,8 @@ class BTCPSocket:
     # Return the Internet checksum of data
     @staticmethod
     def in_cksum(data):
-        # should be array of 2 bytes
-        pass
+        #should be array of 2 bytes
+        return 0
 
     # Receives data for 1 segment (max 1008 bytes), and all other segment values
     # all parameters are in bytes, except for ACK, SYN and FIN, which are booleans

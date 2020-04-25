@@ -14,7 +14,6 @@ def handle_incoming_segments(bTCP_sock, event, udp_sock):
             segment = udp_sock.recvfrom(SEGMENT_SIZE)
             bTCP_sock.lossy_layer_input(segment)
 
-
 # The lossy layer emulates the network layer in that it provides bTCP with 
 # an unreliable segment delivery service between a and b. When the lossy layer is created, 
 # a thread is started that calls handle_incoming_segments. 

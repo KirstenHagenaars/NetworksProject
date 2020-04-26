@@ -19,28 +19,21 @@ class BTCPSocket:
         # Flags are represented as 0 0 0 0 0 ACK SYN FIN
         flags = ACK*4+SYN*2+FIN*1
         flags = flags.to_bytes(1, 'big')
-
         # Compute data length in bytes, should be 2 bytes
         dataLength = len(data)
-
         # Add padding to segment data shorter than 1008
         if dataLength < 1008:
             diff = PAYLOAD_SIZE - dataLength
             data += bytes(diff)
-
-        # convert dataLength to 2 bytes
+        # Convert dataLength to 2 bytes
         dataLength = dataLength.to_bytes(2, 'big')
-
-        # create segment
+        # Create segment
         segment = sequenceNr + ackNr + [flags] + [window] + dataLength + [0x00] + data
-
-        # compute checksum, with checksum value set to 0x00
+        # Compute checksum, with checksum value set to 0x00
         checksum = self.in_cksum(segment)
-
-        # insert checksum
+        # Insert checksum
         segment[8] = checksum[0]
         segment[9] = checksum[1]
-
         return segment
 
     # Takes array of 2 bytes and increments its value by 1, useful for sequenceNr

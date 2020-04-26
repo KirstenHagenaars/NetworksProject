@@ -34,6 +34,8 @@ class BTCPClientSocket(BTCPSocket):
             # TODO check if SYN and ACK are set, and check x+1
             self.sequence_nr_server = segment[0] + segment[1]
             handshake.set()
+        # Set the new ack_nr + window (should this be global? critical section?)
+        # Signal to receiving_data thread
 
     # Perform a three-way handshake to establish a connection
     def connect(self):
@@ -51,22 +53,70 @@ class BTCPClientSocket(BTCPSocket):
 
     # Send data originating from the application in a reliable way to the server
     def send(self, data):
+        global pending_segments  # List of segments currently being sent
         # Chop data into segments of size PAYLOAD_SIZE and save into segments list
-        segments = list(self.slice_data(self.data, self.PAYLOAD))
+        segments = list(self.slice_data(self.data))
         # Add headers to all segments in the list
         for i in range(len(segments)):
             seg = BTCPSocket.create_segment(self, self.sequence_nr, [0x00, 0x00], 0, 0, 0, super()._window, segments[i])
             segments[i] = seg
-            sequence_nr = BTCPSocket.increment_bytes(self, sequence_nr)
+            self.sequence_nr = BTCPSocket.increment_bytes(self.sequence_nr)
         # Send segments
+        threading.start_new_thread(self.sending_data(self, segments))
+        threading.start_new_thread(self.receiving_data(self))
 
-    def slice_data(self, data, slice_length):
-        for i in range(0, len(data), slice_length):
-            yield data[i:i+slice_length]
+    # Slice data into segments of size PAYLOAD_SIZE
+    def slice_data(self, data):
+        for i in range(0, len(data), PAYLOAD_SIZE):
+            yield data[i:i+PAYLOAD_SIZE]
 
-    # Send segment and do selective repeat, using timer
-    def send_segment(self, data):
-        pass
+    # Sending thread: Start the clock and send all the data
+    def sending_data(self, segments):
+        # Send as many segments as the window size allows
+        window = 10 # TODO retrieve window from ACK segment
+        for i in range(window):
+            self.send_segment(self, segments[i])
+            del segments[i]
+        threading.start_new_thread(self.clock(self), None)
+        global ack_arrived
+        ack_arrived = threading.Condition()
+        # Wait until ack arrives
+        # Pop it from the segments to be acked
+        # Send new segment
+
+    # Decrement each segments timeout value every millisecond, resend if timeout reached
+    def clock(self):
+        time.wait(1) # wait for 1 millisecond (can be changed: depending if we want time accuracy or smaller overhead)
+        # Lock
+        for pair in pending_segments:
+            if pair[1] >= super()._timeout: # pair[1] corresponds
+                self.send_segment(pair[0])
+            else:
+                pair[1] = time.time() - pair[1]
+        # Unlock
+
+    # Receiving thread: Receive ACKs, signal to the sending thread and delete ACKed segments from pending_segments
+    def receiving_data(self, segments):
+        while True:
+            # wait for lossy_layer_input signal
+            # signal ack_arrived to sending thread
+            # TODO retrieve the ack_nr from ACK segment
+            for i in range(len(pending_segments)):
+                pass
+                # if seq_nr of pending_segments[i] == ack_nr-1:   # is the ack_nr seq_nr+1?
+                    # Lock
+                    # del pending_segments[i]
+                    # Unlock
+
+    # Send segment and save it into pending_segments
+    def send_segment(self, segment):
+        seg_time_pair = []
+        time_sent = time.time()
+        seg_time_pair.append(segment, time_sent)
+        # Lock
+        pending_segments.append(seg_time_pair)
+        # Unlock
+        self._lossy_layer.send_segment(segment)
 
     # Perform a handshake to terminate a connection
     def disconnect(self):

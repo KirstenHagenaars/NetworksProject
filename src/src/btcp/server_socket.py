@@ -20,7 +20,7 @@ class BTCPServerSocket(BTCPSocket):
     def lossy_layer_input(self, segment):
         if not self.connected:
             # TODO check if SYN flag is set, but ACK for 2nd message
-            self.received = self.received.append(segment)
+            self.received.append(segment)
             handshake.set()
             # TODO store window size
         pass

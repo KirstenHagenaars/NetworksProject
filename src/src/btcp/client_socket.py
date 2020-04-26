@@ -41,7 +41,7 @@ class BTCPClientSocket(BTCPSocket):
     def connect(self):
         global handshake
         handshake = threading.Event()
-        self.pending_events = self.pending_events.append((self.sequence_nr, handshake))
+        self.pending_events.append((self.sequence_nr, handshake))
         self._lossy_layer.send_segment(
             self.create_segment(self.sequence_nr, [0x00, 0x00], 0, 1, 0, super()._window, []))
         handshake.wait()
@@ -121,6 +121,9 @@ class BTCPClientSocket(BTCPSocket):
     # Perform a handshake to terminate a connection
     def disconnect(self):
         # Lets implement this after testing the connection establisment, so we dont waste time
+        self._lossy_layer.send_segment(
+            self.create_segment(self.sequence_nr, [0x00, 0x00], 0, 0, 1, super()._window, []))
+        # wait for response with ack and fin, try some amount of times before giving up
         self.connected = False
         pass
 

@@ -6,11 +6,22 @@ class BTCPSocket:
         self._window = window
         self._timeout = timeout
 
+
     # Return the Internet checksum of data
     @staticmethod
     def in_cksum(data):
-        #should be array of 2 bytes
-        return 0
+        sum = 0
+        for i in range(0, len(data), 2):
+            # Take 2 bytes and add them to the sum
+            x = data[i] * 256 + data[i + 1]
+            intermediate = sum + x
+            # Wraparound carry
+            sum = (intermediate & 0xffff) + (intermediate >> 16)
+        return ~sum & 0xffff
+
+    # Returns true if the checksum corresponds to the segment
+    def check_cksum(self, segment):
+        return 0 == ~self.in_cksum(segment) & 0xffff
 
     # Receives data for 1 segment (max 1008 bytes), and all other segment values
     # all parameters are in bytes, except for ACK, SYN and FIN, which are booleans

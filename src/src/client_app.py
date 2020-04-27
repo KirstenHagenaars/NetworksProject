@@ -17,8 +17,8 @@ def main():
     # convert data to array of bytes, might be done implicitly
 
     s.connect()
-    s.send(args.input)
-    s.disconnect()
+    #s.send(args.input)
+    #s.disconnect()
     # Clean up any state
     s.close()
 

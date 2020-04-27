@@ -33,18 +33,22 @@ class BTCPSocket:
         # Compute data length in bytes, should be 2 bytes
         dataLength = len(data)
         # Add padding to segment data shorter than 1008
-        if dataLength < 1008:
+        if dataLength < PAYLOAD_SIZE:
             diff = PAYLOAD_SIZE - dataLength
             data += bytes(diff)
         # Convert dataLength to 2 bytes
         dataLength = dataLength.to_bytes(2, 'big')
         # Create segment
-        segment = sequenceNr + ackNr + [flags] + [window] + dataLength + [0x00] + data
+        segment = sequenceNr + ackNr + flags + window.to_bytes(1, 'big') + dataLength + 0x00.to_bytes(2, 'big') + bytes(data)
+        #print(segment)
         # Compute checksum, with checksum value set to 0x00
         checksum = self.in_cksum(segment)
         # Insert checksum
-        segment[8] = checksum[0]
-        segment[9] = checksum[1]
+        segment = sequenceNr + ackNr + flags + window.to_bytes(1, 'big') + dataLength + checksum.to_bytes(2, 'big') + bytes(data)
+        #segment[8] = checksum[0]
+        #segment[9] = checksum[1]
+        # TODO discuss whether we should use bytearray instead of bytes
+        #print(segment)
         return segment
 
     # Takes array of 2 bytes and increments its value by 1, useful for sequenceNr

@@ -39,4 +39,4 @@ class LossyLayer:
 
     # Put the segment into the network
     def send_segment(self, segment):
-        self._udp_sock.sendto(segment, (self.b_ip, self.b_port))
+        self._udp_sock.sendto(segment, (self._b_ip, self._b_port))

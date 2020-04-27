@@ -23,6 +23,7 @@ class BTCPClientSocket(BTCPSocket):
     # Called by the lossy layer from another thread whenever a segment arrives. 
     def lossy_layer_input(self, segment):
         # look for corresponding event in array, awaken event
+        segment = segment[0]
         if self.connected:
             sequenceNr = segment[0] + segment[1]
             for tuple in self.pending_events:
@@ -32,7 +33,7 @@ class BTCPClientSocket(BTCPSocket):
                     break
         else:
             # TODO check if SYN and ACK are set, and check x+1
-            self.sequence_nr_server = segment[0] + segment[1]
+            self.sequence_nr_server = segment[:2]
             handshake.set()
         # Set the new ack_nr + window (should this be global? critical section?)
         # Signal to receiving_data thread
@@ -42,23 +43,25 @@ class BTCPClientSocket(BTCPSocket):
         global handshake
         handshake = threading.Event()
         self.pending_events.append((self.sequence_nr, handshake))
+        zero = 0
         self._lossy_layer.send_segment(
-            self.create_segment(self.sequence_nr, [0x00, 0x00], 0, 1, 0, super()._window, []))
+            self.create_segment(self.sequence_nr, zero.to_bytes(2, 'big'), 0, 1, 0, self._window, []))
         handshake.wait()
         self.sequence_nr = self.increment_bytes(self.sequence_nr)
         self._lossy_layer.send_segment(self.create_segment(
-            self.sequence_nr, self.increment_bytes(self.sequence_nr_server), True, False, False, super()._window,[]))
+            self.sequence_nr, self.increment_bytes(self.sequence_nr_server), 1, 0, 0, self._window, []))
         # TODO discuss wait for handshake vs wait for normal ack
         self.connected = True
+        print("connected!!")
 
     # Send data originating from the application in a reliable way to the server
     def send(self, data):
         global pending_segments  # List of segments currently being sent
         # Chop data into segments of size PAYLOAD_SIZE and save into segments list
-        segments = list(self.slice_data(self.data))
+        segments = list(self.slice_data(data))
         # Add headers to all segments in the list
         for i in range(len(segments)):
-            seg = BTCPSocket.create_segment(self, self.sequence_nr, [0x00, 0x00], 0, 0, 0, super()._window, segments[i])
+            seg = BTCPSocket.create_segment(self, self.sequence_nr, [0x00, 0x00], 0, 0, 0, self._window, segments[i])
             segments[i] = seg
             self.sequence_nr = BTCPSocket.increment_bytes(self.sequence_nr)
         # Send segments

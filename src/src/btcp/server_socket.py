@@ -18,6 +18,8 @@ class BTCPServerSocket(BTCPSocket):
         self.sequence_nr = np.random.bytes(2)
         self.sequence_nr_client = None
         self.window_client = None
+        # Array of (sequenceNR, data) tuples, that have been received
+        self.processed = []
 
     # Called by the lossy layer from another thread whenever a segment arrives
     def lossy_layer_input(self, segment):
@@ -64,8 +66,8 @@ class BTCPServerSocket(BTCPSocket):
         lock_ack = threading.Lock
         lock_rec_data = threading.Lock
         # Receive segments and send corresponding ACKs
-        threading.start_new_thread(self.receiving_data(self))
-        threading.start_new_thread(self.sending_data(self))
+        threading.start_new_thread(self.receiving_data())
+        threading.start_new_thread(self.sending_data())
         # Sort the segments
         rec_data = self.sort(self.received)
         # Prepare data - strip segments from headers, concatenate and convert (not sure if convert needed)
@@ -80,15 +82,16 @@ class BTCPServerSocket(BTCPSocket):
 
     # Sending thread: Wait for signal from receiving thread, send ACK segment
     def sending_data(self):
+        # add tuple to processed
         pass
 
     # Sorts the segments in data based on their sequence number
-    def sort(data):
-        # Do stuff
+    def sort(self, data):
+        # Remove duplicates, sort processed
         return data
 
     # Converts the segments in data into a uft-8 string
-    def prepare(data):
+    def prepare(self, data):
         # Do stuff
         return data
 

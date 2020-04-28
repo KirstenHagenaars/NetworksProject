@@ -46,13 +46,13 @@ class BTCPSocket:
         checksum = self.in_cksum(segment)
         # Insert checksum
         segment = sequenceNr + ackNr + flags + window.to_bytes(1, 'big') + dataLength + checksum.to_bytes(2, 'big') + bytes(data)
-        #segment[8] = checksum[0]
-        #segment[9] = checksum[1]
-        # TODO discuss whether we should use bytearray instead of bytes
-        #print(segment)
         return segment
 
     # Takes array of 2 bytes and increments its value by 1, useful for sequenceNr
     def increment_bytes(self, bytes):
         increasedValue = int.from_bytes(bytes, 'big') + 1
         return increasedValue.to_bytes(2, 'big')
+
+    # Takes flags byte and returns 3 booleans corresponding to the flags
+    def get_flags(self, flags):
+        pass

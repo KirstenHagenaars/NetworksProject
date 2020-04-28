@@ -19,6 +19,7 @@ class BTCPClientSocket(BTCPSocket):
         # The sequence number, 2 bytes
         self.sequence_nr = np.random.bytes(2)
         self.sequence_nr_server = None
+        self.ack_nr = None
         self.window_server = None
 
     # Called by the lossy layer from another thread whenever a segment arrives. 
@@ -30,6 +31,8 @@ class BTCPClientSocket(BTCPSocket):
         #if self.check_cksum(segment):
         self.sequence_nr_server = segment[:2]
         self.window_server = segment[5]
+        self.ack_nr = segment[3:4]
+        ack_arrived.set()
         if self.connected:
             for tuple in self.pending_events:
                 if self.sequence_nr_server == tuple[0]:
@@ -65,17 +68,20 @@ class BTCPClientSocket(BTCPSocket):
 
     # Send data originating from the application in a reliable way to the server
     def send(self, data):
-        global pending_segments  # List of segments currently being sent
+        global pending_segments, lock  # List of segments waiting for ack, corresponding lock
+        lock = threading.Lock()
         # Chop data into segments of size PAYLOAD_SIZE and save into segments list
         segments = list(self.slice_data(data))
         # Add headers to all segments in the list
+        zero = 0
         for i in range(len(segments)):
-            seg = BTCPSocket.create_segment(self, self.sequence_nr, [0x00, 0x00], 0, 0, 0, self._window, segments[i])
+            seg = BTCPSocket.create_segment(self.sequence_nr, zero.to_bytes(2, 'big'), 0, 0, 0, self._window, segments[i])
             segments[i] = seg
             self.sequence_nr = BTCPSocket.increment_bytes(self.sequence_nr)
         # Send segments
         threading.start_new_thread(self.sending_data(self, segments))
         threading.start_new_thread(self.receiving_data(self))
+        # TODO Finish
 
     # Slice data into segments of size PAYLOAD_SIZE
     def slice_data(self, data):
@@ -84,50 +90,59 @@ class BTCPClientSocket(BTCPSocket):
 
     # Sending thread: Start the clock and send all the data
     def sending_data(self, segments):
-        # Send as many segments as the window size allows
-        window = 10 # TODO retrieve window from ACK segment
+        # Send first segments
+        window = self.window_server
         for i in range(window):
             self.send_segment(self, segments[i])
             del segments[i]
-        threading.start_new_thread(self.clock(self), None)
-        global ack_arrived
-        ack_arrived = threading.Condition()
-        # Wait until ack arrives
-        # Pop it from the segments to be acked
-        # Send new segment
+        # Start the clock
+        threading.start_new_thread(self.clock(self))
+        global send_more
+        send_more = threading.Event()
+        # Send all remaining segments
+        while segments: # while there is still stuff to send
+            send_more.wait()
+            send_more.clear()
+            # Acquire the new window and send as many segments as possible
+            window = self.window_server
+            for i in range(window):
+                self.send_segment(self, segments[i])
+                del segments[i]
 
     # Decrement each segments timeout value every millisecond, resend if timeout reached
     def clock(self):
         time.wait(1) # wait for 1 millisecond (can be changed: depending if we want time accuracy or smaller overhead)
-        # Lock
+        lock.acquire()
         for pair in pending_segments:
             if pair[1] >= super()._timeout: # pair[1] corresponds
                 self.send_segment(pair[0])
             else:
                 pair[1] = time.time() - pair[1]
-        # Unlock
+        lock.release
 
     # Receiving thread: Receive ACKs, signal to the sending thread and delete ACKed segments from pending_segments
     def receiving_data(self, segments):
+        global ack_arrived
+        ack_arrived = threading.Event()
         while True:
-            # wait for lossy_layer_input signal
-            # signal ack_arrived to sending thread
-            # TODO retrieve the ack_nr from ACK segment
-            for i in range(len(pending_segments)):
-                pass
-                # if seq_nr of pending_segments[i] == ack_nr-1:   # is the ack_nr seq_nr+1?
-                    # Lock
-                    # del pending_segments[i]
-                    # Unlock
+            ack_arrived.wait()
+            ack_arrived.clear()
+            # Notify sending thread to send more segments and delete the ACKed segment from pending_segments
+            send_more.set()
+            for seg in pending_segments:
+                if seg[0] == self.ack_nr[0] and seg[1] == self.ack_nr[1]:
+                    lock.acquire()
+                    del seg
+                    lock.release()
 
     # Send segment and save it into pending_segments
     def send_segment(self, segment):
         seg_time_pair = []
         time_sent = time.time()
         seg_time_pair.append(segment, time_sent)
-        # Lock
+        lock.acquire()
         pending_segments.append(seg_time_pair)
-        # Unlock
+        lock.release
         self._lossy_layer.send_segment(segment)
 
     # Perform a handshake to terminate a connection

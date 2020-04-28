@@ -26,6 +26,7 @@ class BTCPServerSocket(BTCPSocket):
         #if self.check_cksum(segment):
         self.sequence_nr_client = segment[:2]
         self.window_client = segment[5]
+
         if not self.connected:
             # TODO check if SYN flag is set, but ACK for 2nd message
             self.received.append(segment)
@@ -59,10 +60,37 @@ class BTCPServerSocket(BTCPSocket):
 
     # Send any incoming data to the application layer
     def recv(self):
-        # I think this should return all the data
-
+        global ack, lock_ack, lock_rec_data # ACK segment to be sent, lock on the segment and lock on the received segs
+        lock_ack = threading.Lock
+        lock_rec_data = threading.Lock
+        # Receive segments and send corresponding ACKs
+        threading.start_new_thread(self.receiving_data(self))
+        threading.start_new_thread(self.sending_data(self))
+        # Sort the segments
+        rec_data = self.sort(self.received)
+        # Prepare data - strip segments from headers, concatenate and convert (not sure if convert needed)
+        data = self.prepare(self.received)
         self.connected = False
+        return data
+
+    # Receiving thread:
+    # Wait for a segment from lossy layer, create ACK segment and signal to the sending thread to send this ACK
+    def receiving_data(self):
         pass
+
+    # Sending thread: Wait for signal from receiving thread, send ACK segment
+    def sending_data(self):
+        pass
+
+    # Sorts the segments in data based on their sequence number
+    def sort(data):
+        # Do stuff
+        return data
+
+    # Converts the segments in data into a uft-8 string
+    def prepare(data):
+        # Do stuff
+        return data
 
     # Clean up any state
     def close(self):

@@ -16,15 +16,26 @@ class BTCPServerSocket(BTCPSocket):
         # Contains all arrived segments that still need to be processed and acknowledged
         self.received = []
         self.sequence_nr = np.random.bytes(2)
+        self.sequence_nr_client = None
+        self.window_client = None
 
     # Called by the lossy layer from another thread whenever a segment arrives
     def lossy_layer_input(self, segment):
+        segment = segment[0]
+        print(segment)
+        #if self.check_cksum(segment):
+        self.sequence_nr_client = segment[:2]
+        self.window_client = segment[5]
         if not self.connected:
             # TODO check if SYN flag is set, but ACK for 2nd message
-            self.received.append(segment[0])
+            self.received.append(segment)
             handshake.set()
-            # TODO store window size
-        pass
+        else:
+            # TODO check if FIN is set to start termination
+            # receive data
+            pass
+        #else:S
+         #   print("ohnoo")
 
     # Wait for the client to initiate a three-way handshake
     def accept(self):
@@ -33,17 +44,18 @@ class BTCPServerSocket(BTCPSocket):
         handshake.wait()
         handshake.clear()
         segment = self.received[0]
-        x = segment[:2] # sequenceNr of incoming segment
         self.received.pop(0)
         self._lossy_layer.send_segment(
-            self.create_segment(self.sequence_nr, self.increment_bytes(x), True, True, False, self._window, []))
+            self.create_segment(self.sequence_nr, self.increment_bytes(self.sequence_nr_client), True, True, False, self._window, []))
         self.sequence_nr = self.increment_bytes(self.sequence_nr)
         handshake.wait()
         segment = self.received[0]
         # TODO check this if
-        if self.sequence_nr == segment[:2]:
-            self.connected = True
-            print("connected!!")
+        print(self.sequence_nr)
+        print(segment[:2])
+        #if self.sequence_nr == segment[:2]:
+        self.connected = True
+        print("connected!!")
 
     # Send any incoming data to the application layer
     def recv(self):

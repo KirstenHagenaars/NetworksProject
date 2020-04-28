@@ -17,6 +17,7 @@ class BTCPSocket:
             intermediate = sum + x
             # Wraparound carry
             sum = (intermediate & 0xffff) + (intermediate >> 16)
+        print(~sum & 0xffff)
         return ~sum & 0xffff
 
     # Returns true if the checksum corresponds to the segment

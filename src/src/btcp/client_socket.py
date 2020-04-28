@@ -19,24 +19,33 @@ class BTCPClientSocket(BTCPSocket):
         # The sequence number, 2 bytes
         self.sequence_nr = np.random.bytes(2)
         self.sequence_nr_server = None
+        self.window_server = None
 
     # Called by the lossy layer from another thread whenever a segment arrives. 
     def lossy_layer_input(self, segment):
         # look for corresponding event in array, awaken event
         segment = segment[0]
+        print(segment)
+        # TODO debug checksum
+        #if self.check_cksum(segment):
+        self.sequence_nr_server = segment[:2]
+        self.window_server = segment[5]
         if self.connected:
-            sequenceNr = segment[0] + segment[1]
             for tuple in self.pending_events:
-                if sequenceNr == tuple[0]:
+                if self.sequence_nr_server == tuple[0]:
                     tuple[1].set()
                     # This should be able to communicate with the send_segment
                     break
         else:
             # TODO check if SYN and ACK are set, and check x+1
-            self.sequence_nr_server = segment[:2]
+
             handshake.set()
-        # Set the new ack_nr + window (should this be global? critical section?)
-        # Signal to receiving_data thread
+            # Set the new ack_nr + window (should this be global? critical section?)
+            # Signal to receiving_data thread
+        #else:
+            # Checksum doesnt correspond
+            #print("ohno")
+            #pass
 
     # Perform a three-way handshake to establish a connection
     def connect(self):

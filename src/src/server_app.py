@@ -2,7 +2,7 @@
 
 import argparse
 from btcp.server_socket import BTCPServerSocket
-
+import numpy as np
 
 def main():
     parser = argparse.ArgumentParser()
@@ -15,7 +15,9 @@ def main():
     s = BTCPServerSocket(args.window, args.timeout)
     # TODO Write your file transfer server code here using your BTCPServerSocket's accept, and recv methods.
 
-    s.accept()
+    x = np.random.bytes(2)
+    print(s.sort([(x, np.random.bytes(4)), (np.random.bytes(2), np.random.bytes(4)), (x, np.random.bytes(4)), (np.random.bytes(2), np.random.bytes(4)), (x, np.random.bytes(4))]))
+    #s.accept()
     #data = s.recv()
     # Clean up any state
     s.close()

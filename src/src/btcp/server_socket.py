@@ -81,10 +81,32 @@ class BTCPServerSocket(BTCPSocket):
         # add tuple to processed
         pass
 
-    # Sorts the segments in data based on their sequence number
+    # Sorts the segments in data based on their sequence number, and removes duplicates
     def sort(self, data):
-        # Remove duplicates, sort processed, insertion or merge
-        return data
+        # Insertion sort
+        self.processed = data
+        for i in range(1, len(self.processed)):
+            if i >= len(self.processed):
+                break
+            #print(self.processed)
+            current = self.processed[i]
+            j = i - 1
+            dup = False
+            while j >= 0 and current[0] <= self.processed[j][0] and not dup:
+                if current[0] == self.processed[j][0]:
+                    # TODO Remove duplicate
+                    pass
+                    #self.processed.pop(i)
+                    #dup = True
+                    #i -= 1
+                else:
+                    self.processed[j + 1] = self.processed[j]
+                j -= 1
+            if not dup:
+                self.processed[j + 1] = current
+
+        return self.processed
+
 
     # Converts the segments in data into a uft-8 string
     def prepare(self, data):

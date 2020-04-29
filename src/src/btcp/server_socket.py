@@ -24,21 +24,18 @@ class BTCPServerSocket(BTCPSocket):
     # Called by the lossy layer from another thread whenever a segment arrives
     def lossy_layer_input(self, segment):
         segment = segment[0]
-        print(segment)
-        #if self.check_cksum(segment):
-        self.sequence_nr_client = segment[:2]
-        self.window_client = segment[5]
+        if self.check_cksum(segment):
+            self.sequence_nr_client = segment[:2]
+            self.window_client = segment[5]
 
-        if not self.connected:
-            # TODO check if SYN flag is set, but ACK for 2nd message
-            self.received.append(segment)
-            handshake.set()
-        else:
-            # TODO check if FIN is set to start termination
-            # receive data
-            pass
-        #else:S
-         #   print("ohnoo")
+            if not self.connected:
+                # TODO check if SYN flag is set, but ACK for 2nd message
+                self.received.append(segment)
+                handshake.set()
+            else:
+                # TODO check if FIN is set to start termination
+                # receive data
+                pass
 
     # Wait for the client to initiate a three-way handshake
     def accept(self):
@@ -46,6 +43,7 @@ class BTCPServerSocket(BTCPSocket):
         handshake = threading.Event()
         handshake.wait()
         handshake.clear()
+        # insert while loop, condition is correct flags
         segment = self.received[0]
         self.received.pop(0)
         self._lossy_layer.send_segment(
@@ -54,11 +52,9 @@ class BTCPServerSocket(BTCPSocket):
         handshake.wait()
         segment = self.received[0]
         # TODO check this if
-        print(self.sequence_nr)
-        print(segment[:2])
-        #if self.sequence_nr == segment[:2]:
-        self.connected = True
-        print("connected!!")
+        if self.sequence_nr == segment[2:4]:
+            self.connected = True
+            print("connected!!")
 
     # Send any incoming data to the application layer
     def recv(self):
@@ -87,7 +83,7 @@ class BTCPServerSocket(BTCPSocket):
 
     # Sorts the segments in data based on their sequence number
     def sort(self, data):
-        # Remove duplicates, sort processed
+        # Remove duplicates, sort processed, insertion or merge
         return data
 
     # Converts the segments in data into a uft-8 string

@@ -2,7 +2,7 @@
 
 import argparse
 from btcp.client_socket import BTCPClientSocket
-
+import numpy as np
 
 def main():
     parser = argparse.ArgumentParser()

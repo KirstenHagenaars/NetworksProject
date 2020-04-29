@@ -26,26 +26,22 @@ class BTCPClientSocket(BTCPSocket):
     def lossy_layer_input(self, segment):
         # look for corresponding event in array, awaken event
         segment = segment[0]
-        print(segment)
         # TODO debug checksum
-        #if self.check_cksum(segment):
-        self.sequence_nr_server = segment[:2]
-        self.window_server = segment[5]
-        self.ack_nr = segment[3:4]
-        ack_arrived.set()
-        if self.connected:
-            # Add segment to acknowledgements
-            self.acknowledgements.append(segment)
-        else:
-            # TODO check if SYN and ACK are set, and check x+1
+        if self.check_cksum(segment):
+            self.sequence_nr_server = segment[:2]
+            self.window_server = segment[5]
+            self.ack_nr = segment[3:4]
 
-            handshake.set()
-            # Set the new ack_nr + window (should this be global? critical section?)
-            # Signal to receiving_data thread
-        #else:
-            # Checksum doesnt correspond
-            #print("ohno")
-            #pass
+            if self.connected:
+                # Add segment to acknowledgements
+                ack_arrived.set()
+                self.acknowledgements.append(segment)
+            else:
+                # TODO check if SYN and ACK are set, and check x+1
+
+                handshake.set()
+                # Set the new ack_nr + window (should this be global? critical section?)
+                # Signal to receiving_data thread
 
     # Perform a three-way handshake to establish a connection
     def connect(self):
@@ -54,11 +50,10 @@ class BTCPClientSocket(BTCPSocket):
         self._lossy_layer.send_segment(
             self.create_segment(self.sequence_nr, (0).to_bytes(2, 'big'), 0, 1, 0, self._window, []))
         handshake.wait()
+        # todo make loop/ use clock, read segment
         self.sequence_nr = self.increment_bytes(self.sequence_nr)
         self._lossy_layer.send_segment(self.create_segment(
             self.sequence_nr, self.increment_bytes(self.sequence_nr_server), 1, 0, 0, self._window, []))
-        # TODO discuss wait for handshake vs wait for normal ack
-        # TODO read segment
         self.connected = True
         print("connected!!")
 

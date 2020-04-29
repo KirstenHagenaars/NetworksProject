@@ -17,12 +17,11 @@ class BTCPSocket:
             intermediate = sum + x
             # Wraparound carry
             sum = (intermediate & 0xffff) + (intermediate >> 16)
-        print(~sum & 0xffff)
         return ~sum & 0xffff
 
     # Returns true if the checksum corresponds to the segment
     def check_cksum(self, segment):
-        return 0 == ~self.in_cksum(segment) & 0xffff
+        return 0 == self.in_cksum(segment)
 
     # Receives data for 1 segment (max 1008 bytes), and all other segment values
     # all parameters are in bytes, except for ACK, SYN and FIN, which are booleans
@@ -41,7 +40,6 @@ class BTCPSocket:
         dataLength = dataLength.to_bytes(2, 'big')
         # Create segment
         segment = sequenceNr + ackNr + flags + window.to_bytes(1, 'big') + dataLength + 0x00.to_bytes(2, 'big') + bytes(data)
-        #print(segment)
         # Compute checksum, with checksum value set to 0x00
         checksum = self.in_cksum(segment)
         # Insert checksum
@@ -53,6 +51,6 @@ class BTCPSocket:
         increasedValue = int.from_bytes(bytes, 'big') + 1
         return increasedValue.to_bytes(2, 'big')
 
-    # Takes flags byte and returns 3 booleans corresponding to the flags
+    # Takes flags byte and returns 3 booleans corresponding to the flags, in order ACK SYN FIN
     def get_flags(self, flags):
-        pass
+        return flags&4 != 0, flags&2 != 0, flags&1 != 0

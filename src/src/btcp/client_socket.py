@@ -5,7 +5,6 @@ import numpy as np
 import time
 from threading import Lock, Event
 import threading
-import _thread
 
 
 
@@ -16,7 +15,8 @@ class BTCPClientSocket(BTCPSocket):
         super().__init__(window, timeout)
         self._lossy_layer = LossyLayer(self, CLIENT_IP, CLIENT_PORT, SERVER_IP, SERVER_PORT)
         self.connected = False                  # Keeps track of the state, connected or not
-        self.handshake_response = False  # Is true once server has done its part in the handshake
+        self.handshake_response = False         # Is true once server has done its part in the handshake
+        self.termination_response = False       # Is true once server has done its part in termination
         self.segments = []                      # Segments to be sent
         self.acknowledgements = []              # Received acknowledgements
         self.pending_segments = []              # Segments to be acked
@@ -55,7 +55,7 @@ class BTCPClientSocket(BTCPSocket):
                     self.ack_arrived.set()
                 elif ACK and FIN:
                     # Signal disconnect
-                    pass
+                    self.termination_response = True
             elif ACK and SYN and self.increment_bytes(self.sequence_nr) == self.ack_nr:
                 # Server has done its part in the three-way handshake
                 self.handshake_response = True
@@ -65,6 +65,7 @@ class BTCPClientSocket(BTCPSocket):
         segment1 = self.create_segment(self.sequence_nr, (0).to_bytes(2, 'big'), 0, 1, 0, self._window, [])
         self._lossy_layer.send_segment(segment1)
         # Start clock thread to resend segment if necessary
+        # TODO fix error about args
         lst = [segment1, time.time(), NR_OF_TRIES]
         thread1 = threading.Thread(target=self.clock_disconnected, args=(lst))
         thread1.start()
@@ -75,6 +76,7 @@ class BTCPClientSocket(BTCPSocket):
             self.sequence_nr, self.increment_bytes(self.sequence_nr_server), 1, 0, 0, self._window, []))
         print(int.from_bytes(self.sequence_nr_server, 'big'), " is the seq nr of the server")
         self.connected = True
+        self.handshake_response = False
         print("connected!!")
 
     # Send data originating from the application in a reliable way to the server
@@ -134,7 +136,7 @@ class BTCPClientSocket(BTCPSocket):
     def clock_disconnected(self, segment):
         print("clock disconnected started")
         declined = False
-        while not declined or not self.connected:
+        while not declined and not self.handshake_response and not self.termination_response:
             time.sleep(.005)
             if segment[1] >= self._timeout and segment[2] > 0:
                 segment[2] -= 1
@@ -198,10 +200,16 @@ class BTCPClientSocket(BTCPSocket):
 
     # Perform a handshake to terminate a connection
     def disconnect(self):
-        self._lossy_layer.send_segment(
-            self.create_segment(self.sequence_nr, [0x00, 0x00], 0, 0, 1, super()._window, []))
-        # wait for response with ack and fin, try some amount of times before giving up
+        segment = self.create_segment(self.sequence_nr, (0).to_bytes(2, 'big'), 0, 0, 1, self._window, [])
+        self._lossy_layer.send_segment(segment)
+        # Start clock thread to resend segment if necessary
+        lst = [segment, time.time(), NR_OF_TRIES]
+        thread = threading.Thread(target=self.clock_disconnected, args=lst)
+        thread.start()
+        thread.join()
         self.connected = False
+        print("connection closed succesfully")
+
 
     # Clean up any state
     def close(self):

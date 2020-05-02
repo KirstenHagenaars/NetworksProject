@@ -24,6 +24,8 @@ class BTCPServerSocket(BTCPSocket):
         self.sequence_nr = np.random.bytes(2)
         self.sequence_nr_client = None
         self.window_client = None
+        self.handshake = Event()
+        self.end_handshake = False
         # Array of (sequenceNR, data) tuples, that have been received
         self.processed = []
 
@@ -33,47 +35,47 @@ class BTCPServerSocket(BTCPSocket):
         if self.check_cksum(segment):
             self.sequence_nr_client = segment[:2]
             self.window_client = segment[5]
-            if self.connected:
-                # TODO check if FIN is set to start termination
-                # if nor FIN: notify the receiving thread
-                self.received.append(segment)
-                self.seg_received.set()
+            ACK, SYN, FIN = self.get_flags(segment[4])
+            if not self.connected and (SYN or ACK):
+                if ACK and self.increment_bytes(self.sequence_nr) == segment[2:4]:
+                    self.end_handshake = True
+                # self.received.append(segment)
+                self.handshake.set()
             else:
-                # TODO check if SYN flag is set, but ACK for 2nd message
-                self.received.append(segment)
-                handshake.set()
+                if not FIN:
+                    # Notify receiving thread
+                    # self.received.append(segment)
+                    self.seg_received.set()
+                else:
+                    # TODO Start termination, signal recv that it can process data, and send segment
+                    pass
 
     # Wait for the client to initiate a three-way handshake
     def accept(self):
-        global handshake
-        handshake = Event()
-        handshake.wait()
-        handshake.clear()
-        # insert while loop, condition is correct flags
-        segment = self.received[0]
-        self.received.pop(0)
-        self._lossy_layer.send_segment(
-            self.create_segment(self.sequence_nr, self.increment_bytes(self.sequence_nr_client), True, True, False, self._window, []))
+        self.handshake.wait()
+        self.handshake.clear()
+        # Respond to SYN segment every time it arrives, until ACK segment arrives
+        while not self.end_handshake:
+            self._lossy_layer.send_segment(
+                self.create_segment(self.sequence_nr, self.increment_bytes(self.sequence_nr_client), True, True, False,
+                                    self._window, []))
+            self.handshake.wait()
+            self.handshake.clear()
         self.sequence_nr = self.increment_bytes(self.sequence_nr)
-        handshake.wait()
-        segment = self.received[0]
-        # TODO check this if
-        if self.sequence_nr == segment[2:4]:
-            self.connected = True
-            print("connected!!")
-        del self.received[0]
+        self.connected = True
+        print("connected!!")
 
     # Send any incoming data to the application layer
     def recv(self):
         # Receive segments and send corresponding ACKs
-        t1 = threading.Thread(target=self.receiving_data)
-        t1.start()
+        _thread.start_new_thread(self.receiving_data(), ())
+        _thread.start_new_thread(self.sending_data(), ())
+        # for that warning^ we might need the same threads as lossy layer: threading.Thread(target=receiving_data)
+        # TODO Wait for FIN and wait for threads with .join()
         # Sort the segments
-        rec_data = self.sort(self.received)
-        # Prepare data - strip segments from theaders, concatenate and convert (not sure if convert needed)
-        data = self.prepare(self.received)
-        # TODO finish threads
-        return data
+        # Prepare data - strip segments from headers, concatenate and convert (not sure if convert needed)
+        self.connected = False
+        return self.prepare(self.sort(self.processed))
 
     # Receiving thread:
     # Wait for a segment from lossy layer, create ACK segment, save into received list
@@ -89,14 +91,14 @@ class BTCPServerSocket(BTCPSocket):
                 print("SERVER: Received segment with seq_nr: ", (seg[:2]), "and data is: ", seg[10:])
                 seq_nr, ack_nr, window = self.get_ack_attributes(seg)
                 ack = self.create_segment(seq_nr, ack_nr, 0, 1, 0, window, [])
-                self.lock_ack.acquire()
-                del seg
-                self.acknowledgements.append(ack)
-                if self.lock_ack.locked():
-                    self.lock_ack.release()
-                self.ack_present.set()
-            if self.lock_rec.locked():
-                self.lock_rec.release()
+                # Add data to processed
+                self.processed.append((seq_nr, seg[10:10+int.from_bytes(seg[6:8], 'big')]))
+           #     self.lock_ack.acquire()
+           #     del seg
+           #     self.acknowledgements.append(ack)
+           #     self.lock_ack.release()
+           #     self.ack_present.set()
+           #     self.lock_rec.release()
 
     # Sending thread: Wait for signal from receiving thread, send ACK segment
     def sending_data(self):
@@ -116,43 +118,35 @@ class BTCPServerSocket(BTCPSocket):
     def get_ack_attributes(self, segment):
         seq_nr = segment[:2]
         ack_nr = segment[2:4]
-        if not self.lock_rec.locked():
-            self.lock_rec.acquire()
         window = self._window - len(self.received)
-        if self.lock_rec.locked():
-            self.lock_rec.release()
         return seq_nr, ack_nr, window
 
-    # Sorts the segments in data based on their sequence number, and removes duplicates
+    # Sorts the segments in data based on their sequence number
     def sort(self, data):
         # Insertion sort
-        self.processed = data
+        self.processed = data # TODO change, this is for testing
         for i in range(1, len(self.processed)):
-            if i >= len(self.processed):
-                break
-            #print(self.processed)
             current = self.processed[i]
             j = i - 1
-            dup = False
-            while j >= 0 and current[0] <= self.processed[j][0] and not dup:
-                if current[0] == self.processed[j][0]:
-                    # TODO Remove duplicate
-                    pass
-                    #self.processed.pop(i)
-                    #dup = True
-                    #i -= 1
-                else:
-                    self.processed[j + 1] = self.processed[j]
+            while j >= 0 and current[0] < self.processed[j][0]:
+                self.processed[j + 1] = self.processed[j]
                 j -= 1
-            if not dup:
-                self.processed[j + 1] = current
+            self.processed[j + 1] = current
 
         return self.processed
 
-    # Converts the segments in data into a uft-8 string
+    # Converts the segments in data into a uft-8 string, removes duplicates and adds all data together
     def prepare(self, data):
-        # Do stuff
-        return data
+        self.processed = data #change
+        data = []
+        previous = 0x0000 # TODO change, and debug
+        for i in self.processed:
+            # Removes duplicates
+            if previous != i[0]:
+                data.append(int.from_bytes(i[1],'big'))
+                previous = i[0]
+        # Concatenate all elements into a string
+        return ''.join((map(chr, data)))
 
     # Clean up any state
     def close(self):

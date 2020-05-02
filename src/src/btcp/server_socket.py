@@ -2,7 +2,8 @@ import socket
 from btcp.lossy_layer import LossyLayer
 from btcp.btcp_socket import BTCPSocket
 from btcp.constants import *
-from threading import Event, Lock
+from threading import Lock, Event
+import threading
 import _thread
 import numpy as np
 
@@ -32,16 +33,15 @@ class BTCPServerSocket(BTCPSocket):
         if self.check_cksum(segment):
             self.sequence_nr_client = segment[:2]
             self.window_client = segment[5]
-
-            if not self.connected:
+            if self.connected:
+                # TODO check if FIN is set to start termination
+                # if nor FIN: notify the receiving thread
+                self.received.append(segment)
+                self.seg_received.set()
+            else:
                 # TODO check if SYN flag is set, but ACK for 2nd message
                 self.received.append(segment)
                 handshake.set()
-            else:
-                # TODO check if FIN is set to start termination
-                # if nor FIN: notify the receiving thread
-                self.seg_received.set()
-                pass
 
     # Wait for the client to initiate a three-way handshake
     def accept(self):
@@ -61,56 +61,66 @@ class BTCPServerSocket(BTCPSocket):
         if self.sequence_nr == segment[2:4]:
             self.connected = True
             print("connected!!")
+        del self.received[0]
 
     # Send any incoming data to the application layer
     def recv(self):
         # Receive segments and send corresponding ACKs
-        _thread.start_new_thread(self.receiving_data(), ())
-        _thread.start_new_thread(self.sending_data(), ())
+        t1 = threading.Thread(target=self.receiving_data)
+        t1.start()
         # Sort the segments
         rec_data = self.sort(self.received)
-        # Prepare data - strip segments from headers, concatenate and convert (not sure if convert needed)
+        # Prepare data - strip segments from theaders, concatenate and convert (not sure if convert needed)
         data = self.prepare(self.received)
-        self.connected = False
+        # TODO finish threads
         return data
 
     # Receiving thread:
     # Wait for a segment from lossy layer, create ACK segment, save into received list
     # and signal to the sending thread that there is an ack
     def receiving_data(self):
-        self.seg_received.wait()
-        self.seg_received.clear()
+        t2 = threading.Thread(target=self.sending_data)
+        t2.start()
         while True: # TODO fix
+            self.seg_received.wait()
+            self.seg_received.clear()
             self.lock_rec.acquire()
             for seg in self.received:
+                print("SERVER: Received segment with seq_nr: ", (seg[:2]), "and data is: ", seg[10:])
                 seq_nr, ack_nr, window = self.get_ack_attributes(seg)
-                ack = self.create_segment(seq_nr, ack_nr, 0, 1, 0, window, 0x00)
+                ack = self.create_segment(seq_nr, ack_nr, 0, 1, 0, window, [])
                 self.lock_ack.acquire()
+                del seg
                 self.acknowledgements.append(ack)
-                print("sending")
-                print(seg[11:])
+                if self.lock_ack.locked():
+                    self.lock_ack.release()
                 self.ack_present.set()
-                self.lock_ack.release()
-            self.lock_rec.release()
+            if self.lock_rec.locked():
+                self.lock_rec.release()
 
     # Sending thread: Wait for signal from receiving thread, send ACK segment
     def sending_data(self):
-        self.ack_present.wait()
-        self.ack_present.clear()
         while True:
+            self.ack_present.wait()
+            self.ack_present.clear()
             self.lock_ack.acquire()
             if self.acknowledgements:
                 for ack in self.acknowledgements:
                     self._lossy_layer.send_segment(ack)
-            self.lock_ack.release()
+                    print("SERVER: sending ack:", ack[2:4])
+                    del ack
+            if self.lock_ack.locked():
+                self.lock_ack.release()
 
     # Return sequence number, ack number and window of segment
     def get_ack_attributes(self, segment):
         seq_nr = segment[:2]
         ack_nr = segment[2:4]
-        self.lock_rec.acquire()
+        if not self.lock_rec.locked():
+            self.lock_rec.acquire()
         window = self._window - len(self.received)
-        self.lock_rec.release()
+        if self.lock_rec.locked():
+            self.lock_rec.release()
         return seq_nr, ack_nr, window
 
     # Sorts the segments in data based on their sequence number, and removes duplicates

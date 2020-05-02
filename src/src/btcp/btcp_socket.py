@@ -33,9 +33,9 @@ class BTCPSocket:
         # Compute data length in bytes, should be 2 bytes
         dataLength = len(data)
         # Add padding to segment data shorter than 1008
-        if dataLength < PAYLOAD_SIZE:
-            diff = PAYLOAD_SIZE - dataLength
-            data += bytes(diff)
+        # if dataLength < PAYLOAD_SIZE:
+        #  diff = PAYLOAD_SIZE - dataLength
+        # data += bytes(diff)
         # Convert dataLength to 2 bytes
         dataLength = dataLength.to_bytes(2, 'big')
         # Create segment

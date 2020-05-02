@@ -3,6 +3,8 @@
 import argparse
 from btcp.client_socket import BTCPClientSocket
 import numpy as np
+from ftplib import FTP
+
 
 def main():
     parser = argparse.ArgumentParser()
@@ -17,10 +19,12 @@ def main():
     # convert data to array of bytes, might be done implicitly
 
     s.connect()
-    s.send(args.input.encode())
-    #s.disconnect()
+    with open(args.input, 'r') as file:
+        contents = file.read()
+    s.send(contents.encode())
+    # s.disconnect()
     # Clean up any state
-    s.close()
+    # s.close()
 
 
 main()

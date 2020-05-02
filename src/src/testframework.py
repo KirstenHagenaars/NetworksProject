@@ -10,6 +10,8 @@ netem_add="sudo tc qdisc add dev {} root netem".format(intf)
 netem_change="sudo tc qdisc change dev {} root netem {}".format(intf,"{}")
 netem_del="sudo tc qdisc del dev {} root netem".format(intf)
 
+# Nice info: https://docs.python.org/3/library/unittest.html
+
 """run command and retrieve output"""
 def run_command_with_output(command, input=None, cwd=None, shell=True):
     import subprocess
@@ -73,6 +75,7 @@ class TestbTCPFramework(unittest.TestCase):
         # server receives content from client
         
         # content received by server matches the content sent by client
+        #self.assertEqual("input.file", received by client)
     
     def test_flipping_network(self):
         """reliability over network with bit flips 

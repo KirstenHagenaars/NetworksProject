@@ -15,8 +15,10 @@ def main():
     s = BTCPServerSocket(args.window, args.timeout)
     # TODO Write your file transfer server code here using your BTCPServerSocket's accept, and recv methods.
 
-    x = np.random.bytes(2)
-    # print(s.sort([(x, np.random.bytes(4)), (np.random.bytes(2), np.random.bytes(4)), (x, np.random.bytes(4)), (np.random.bytes(2), np.random.bytes(4)), (x, np.random.bytes(4))]))
+    #x = np.random.bytes(2)
+    #y = s.sort([(x, np.random.bytes(4)), (np.random.bytes(2), np.random.bytes(4)), (x, np.random.bytes(4)), (np.random.bytes(2), np.random.bytes(4)), (x, np.random.bytes(4))])
+    #print(y)
+    #print(s.prepare(y))
     s.accept()
     data = s.recv()
     print(data.decode())

@@ -19,9 +19,9 @@ def main():
     # convert data to array of bytes, might be done implicitly
 
     s.connect()
-    with open(args.input, 'r') as file:
-        contents = file.read()
-    s.send(contents.encode())
+    #with open(args.input, 'r') as file:
+    #    contents = file.read()
+    #s.send(contents.encode())
     # s.disconnect()
     # Clean up any state
     # s.close()

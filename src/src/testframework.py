@@ -169,7 +169,7 @@ if __name__ == "__main__":
     # Parse command line arguments
     import argparse
     parser = argparse.ArgumentParser(description="bTCP tests")
-    parser.add_argument("-w", "--window", help="Define bTCP window size used", type=int, default=100)
+    parser.add_argument("-w", "--window", help="Define bTCP window size used", type=int, default=10)
     parser.add_argument("-t", "--timeout", help="Define the timeout value used (ms)", type=int, default=timeout)
     args, extra = parser.parse_known_args()
     timeout = args.timeout

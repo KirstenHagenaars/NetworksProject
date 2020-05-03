@@ -23,9 +23,9 @@ class BTCPServerSocket(BTCPSocket):
         self.ack_present = Event()                # Set when ack is ready
         self.handshake = Event()                  # Set when client requests a handshake
         self.end_handshake = False                # True when the last segment of handshake arrived from client's side
-        self.sequence_nr = np.random.bytes(2)     # TODO do we need this?
+        self.sequence_nr = np.random.bytes(2)
         self.sequence_nr_client = None
-        self.window_client = None                 # TODO do we need this?
+        self.window_client = None
 
     # Called by the lossy layer from another thread whenever a segment arrives
     def lossy_layer_input(self, segment):
@@ -41,9 +41,7 @@ class BTCPServerSocket(BTCPSocket):
             else:
                 if not FIN:
                     # Notify receiving thread
-                    self.lock_rec.acquire()
                     self.received.append(segment)
-                    self.lock_rec.release()
                     self.seg_received.set()
                 else:
                     # Start termination
@@ -72,7 +70,6 @@ class BTCPServerSocket(BTCPSocket):
         t1.start()
         t2.start()
         # Wait for termination to start
-        # TODO when to kill the threads? When do we know that the last segment was sent?
         t1.join()
         t2.join()
         # Now termination has started
@@ -86,36 +83,28 @@ class BTCPServerSocket(BTCPSocket):
     def receiving_data(self):
         self.seg_received.wait()
         self.seg_received.clear()
-        while True:
-            self.lock_rec.acquire()
+        while self.connected:
             for seg in self.received:
                 print("SERVER: Received segment with seq_nr: ", (seg[:2]), "and data is: ", seg[10:])
-                # TODO seq_nr(of server) does not matter, ack_nr = seq_nr of the client?
-                ack = self.create_segment((0).to_bytes(2, 'big'), seg[:2], 0, 1, 0, 0, (self._window - len(self.received), 0))
+                ack = self.create_segment((0).to_bytes(2, 'big'), seg[:2], 0, 1, 0, (self._window - len(self.received), 0))
                 # Add data to processed
                 self.processed.append((seg[:2], seg[10:10+int.from_bytes(seg[6:8], 'big')]))  # smart!
                 del seg
-                self.lock_ack.acquire()
                 self.acknowledgements.append(ack)
-                self.lock_ack.release()
                 self.ack_present.set()
-            self.lock_rec.release()  # For some reason it thinks we are releasing an unlocked lock?
             # wait for other received segments
             self.seg_received.wait()
             self.seg_received.clear()
 
     # Sending thread: Wait for signal from receiving thread, send ACK segment
     def sending_data(self):
-        while True:
+        while self.connected:
             self.ack_present.wait()
             self.ack_present.clear()
-            self.lock_ack.acquire()
-            if self.acknowledgements:
-                for ack in self.acknowledgements:
-                    self._lossy_layer.send_segment(ack)
-                    print("SERVER: sending ack:", ack[2:4])
-                    del ack
-            self.lock_ack.release()
+            for ack in self.acknowledgements:
+                self._lossy_layer.send_segment(ack)
+                print("SERVER: sending ack:", ack[2:4])
+                del ack
 
     def close_connection(self):
         # Send response to FIN segment
@@ -133,12 +122,11 @@ class BTCPServerSocket(BTCPSocket):
                 self.processed[j + 1] = self.processed[j]
                 j -= 1
             self.processed[j + 1] = current
-
         return self.processed
 
     # Converts the segments in data into a uft-8 string, removes duplicates and adds all data together
     def prepare(self, data):
-        self.processed = data #change
+        self.processed = data  # change
         data = []
         previous = 0x0000 # TODO change, and debug
         for i in self.processed:

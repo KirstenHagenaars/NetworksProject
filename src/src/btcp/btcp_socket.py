@@ -31,14 +31,14 @@ class BTCPSocket:
         flags = flags.to_bytes(1, 'big')
         # Compute data length in bytes, should be 2 bytes
         dataLength = len(data)
-        # Add padding to segment data shorter than 1008
+        # Not sure anymore if we need padding:
         # if dataLength < PAYLOAD_SIZE:
-        #  diff = PAYLOAD_SIZE - dataLength
+        # diff = PAYLOAD_SIZE - dataLength
         # data += bytes(diff)
         # Convert dataLength to 2 bytes
         dataLength = dataLength.to_bytes(2, 'big')
         # Create segment
-        segment = sequenceNr + ackNr + flags + window.to_bytes(1, 'big') + dataLength + 0x00.to_bytes(2, 'big') + bytes(data)
+        segment = sequenceNr + ackNr + flags + window.to_bytes(1, 'big') + dataLength + (0).to_bytes(2, 'big') + bytes(data)
         # Compute checksum, with checksum value set to 0x00
         checksum = self.in_cksum(segment)
         # Insert checksum

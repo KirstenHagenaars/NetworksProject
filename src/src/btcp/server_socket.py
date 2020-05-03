@@ -15,18 +15,17 @@ class BTCPServerSocket(BTCPSocket):
         self._lossy_layer = LossyLayer(self, SERVER_IP, SERVER_PORT, CLIENT_IP, CLIENT_PORT)
         self.connected = False
         self.received = []                        # Received segments that still need to be processed and acknowledged
-        self.lock_rec = Lock()                    # Lock on received segments
-        self.seg_received = Event()               # Set when there is a new segment in received segments
+        self.processed = []                       # List of (sequenceNR, data) tuples, that have been received
         self.acknowledgements = []                # List of acks to be sent
+        self.lock_rec = Lock()                    # Lock on received
         self.lock_ack = Lock()                    # Lock on acks to be sent
+        self.seg_received = Event()               # Set when there is a new segment in received segments
         self.ack_present = Event()                # Set when ack is ready
-        self.sequence_nr = np.random.bytes(2)
+        self.handshake = Event()                  # Set when client requests a handshake
+        self.end_handshake = False                # True when the last segment of handshake arrived from client's side
+        self.sequence_nr = np.random.bytes(2)     # TODO do we need this?
         self.sequence_nr_client = None
-        self.window_client = None
-        self.handshake = Event()
-        self.end_handshake = False
-        # Array of (sequenceNR, data) tuples, that have been received
-        self.processed = []
+        self.window_client = None                 # TODO do we need this?
 
     # Called by the lossy layer from another thread whenever a segment arrives
     def lossy_layer_input(self, segment):
@@ -69,10 +68,11 @@ class BTCPServerSocket(BTCPSocket):
     def recv(self):
         # Receive segments and send corresponding ACKs
         t1 = threading.Thread(target=self.receiving_data)
-        t2 = threading.Thread(target=self.sending_data)  # we are starting this twice
+        t2 = threading.Thread(target=self.sending_data)
         t1.start()
         t2.start()
         # Wait for termination to start
+        # TODO when to kill the threads? When do we know that the last segment was sent?
         t1.join()
         t2.join()
         # Now termination has started
@@ -84,29 +84,29 @@ class BTCPServerSocket(BTCPSocket):
     # Wait for a segment from lossy layer, create ACK segment, save into received list
     # and signal to the sending thread that there is an ack
     def receiving_data(self):
-        t2 = threading.Thread(target=self.sending_data) # we are starting this twice
-        t2.start()
-        while self.connected: # TODO fix
-            self.seg_received.wait()
-            self.seg_received.clear()
-            #self.lock_rec.acquire()
+        self.seg_received.wait()
+        self.seg_received.clear()
+        while True:
+            self.lock_rec.acquire()
             for seg in self.received:
                 print("SERVER: Received segment with seq_nr: ", (seg[:2]), "and data is: ", seg[10:])
-                seq_nr, ack_nr, window = self.get_ack_attributes(seg)
-                ack = self.create_segment(seq_nr, ack_nr, 0, 1, 0, window, [])
+                # TODO seq_nr(of server) does not matter, ack_nr = seq_nr of the client?
+                ack = self.create_segment((0).to_bytes(2, 'big'), seg[:2], 0, 1, 0, 0, (self._window - len(self.received), 0))
                 # Add data to processed
-                self.processed.append((seq_nr, seg[10:10+int.from_bytes(seg[6:8], 'big')]))
+                self.processed.append((seg[:2], seg[10:10+int.from_bytes(seg[6:8], 'big')]))  # smart!
                 del seg
                 self.lock_ack.acquire()
                 self.acknowledgements.append(ack)
                 self.lock_ack.release()
                 self.ack_present.set()
-                # For some reason it thinks we are releasing an unlocked lock?
-                #self.lock_rec.release()
+            self.lock_rec.release()  # For some reason it thinks we are releasing an unlocked lock?
+            # wait for other received segments
+            self.seg_received.wait()
+            self.seg_received.clear()
 
     # Sending thread: Wait for signal from receiving thread, send ACK segment
     def sending_data(self):
-        while self.connected:
+        while True:
             self.ack_present.wait()
             self.ack_present.clear()
             self.lock_ack.acquire()
@@ -115,15 +115,7 @@ class BTCPServerSocket(BTCPSocket):
                     self._lossy_layer.send_segment(ack)
                     print("SERVER: sending ack:", ack[2:4])
                     del ack
-            if self.lock_ack.locked():
-                self.lock_ack.release()
-
-    # Return sequence number, ack number and window of segment
-    def get_ack_attributes(self, segment):
-        seq_nr = segment[:2]
-        ack_nr = segment[2:4]
-        window = self._window - len(self.received)
-        return seq_nr, ack_nr, window
+            self.lock_ack.release()
 
     def close_connection(self):
         # Send response to FIN segment

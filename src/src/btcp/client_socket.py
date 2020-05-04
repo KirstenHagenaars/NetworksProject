@@ -80,8 +80,8 @@ class BTCPClientSocket(BTCPSocket):
         payload = list(self.slice_data(data))
         # Add headers to all segments in the list
         for i in payload:
-            seg = self.create_segment(self.sequence_nr, (0).to_bytes(2, 'big'), 0, 0, 0, 0, i)
             self.sequence_nr = self.increment_bytes(self.sequence_nr)
+            seg = self.create_segment(self.sequence_nr, (0).to_bytes(2, 'big'), 0, 0, 0, 0, i)
             self.segments.append(seg)
         # Send segments
         self.receiving.start()

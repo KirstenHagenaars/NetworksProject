@@ -89,7 +89,6 @@ class BTCPServerSocket(BTCPSocket):
                 # print(len(self.received))
                 # TODO change once we have window working
                 ack = self.create_segment((0).to_bytes(2, 'big'), seg[:2], 0, 1, 0, self._window - len(self.received), [])
-                SYN, ACK, FIN = self.get_flags(ack[4])
                 # ack = self.create_segment((0).to_bytes(2, 'big'), seg[:2], 0, 1, 0, 1, [])
                 # Add data to processed
                 self.processed.append((seg[:2], seg[10:10+int.from_bytes(seg[6:8], 'big')]))

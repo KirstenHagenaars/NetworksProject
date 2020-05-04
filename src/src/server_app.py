@@ -22,10 +22,11 @@ def main():
     #print(s.prepare(y))
     s.accept()
     data = s.recv()
-    #print("received")
-    #print(data.decode())
+    print("received")
+    print(data.decode())
     # Clean up any state
-    # s.close()
+    s.close()
+    #TODO they might want us to store the file in "output.file"
 
 
 main()

@@ -2,6 +2,8 @@ import unittest
 import socket
 import time
 import sys
+from btcp.client_socket import BTCPClientSocket
+from btcp.server_socket import BTCPServerSocket
 
 timeout=100
 winsize=100
@@ -55,6 +57,8 @@ class TestbTCPFramework(unittest.TestCase):
         run_command(netem_add)
         
         # launch localhost server
+        self.server = BTCPServerSocket(args.window, args.timeout)
+        self.server.accept()
         
 
     def tearDown(self):
@@ -63,19 +67,25 @@ class TestbTCPFramework(unittest.TestCase):
         run_command(netem_del)
         
         # close server
+        self.server.close()
 
     def test_ideal_network(self):
         """reliability over an ideal framework"""
         # setup environment (nothing to set)
-
         # launch localhost client connecting to server
-        
+        self.client = BTCPClientSocket(args.window, args.timeout)
+        self.client.connect()
         # client sends content to server
-        
+        with open(args.input, 'r') as file:
+            contents = file.read()
+        self.client.send(contents.encode())
+        self.client.disconnect()
+        self.client.close()
         # server receives content from client
-        
+        # TODO will it start receive everything even though the client start earlier?
+        received = self.server.recv()
         # content received by server matches the content sent by client
-        #self.assertEqual("input.file", received by client)
+        self.assertEqual(contents, received)
     
     def test_flipping_network(self):
         """reliability over network with bit flips 

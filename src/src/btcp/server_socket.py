@@ -94,9 +94,10 @@ class BTCPServerSocket(BTCPSocket):
                                           [])
                 # Add data to processed
                 self.processed.append((seg[:2], seg[10:10+int.from_bytes(seg[6:8], 'big')]))
-                del seg
                 self.acknowledgements.append(ack)
                 self.ack_present.set()
+            self.received = []
+            # TODO does this need lock^
             # wait for other received segments
             self.seg_received.wait()
             self.seg_received.clear()
@@ -109,7 +110,8 @@ class BTCPServerSocket(BTCPSocket):
             for ack in self.acknowledgements:
                 self._lossy_layer.send_segment(ack)
                 print("SERVER: sending ack:", ack[2:4])
-                del ack
+            self.acknowledgements = []
+            #TODO should this get locked^
 
     def close_connection(self):
         # Send response to FIN segment

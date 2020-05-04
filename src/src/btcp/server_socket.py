@@ -64,7 +64,6 @@ class BTCPServerSocket(BTCPSocket):
 
     # Send any incoming data to the application layer
     def recv(self):
-        # Receive segments and send corresponding ACKs
         t1 = threading.Thread(target=self.receiving_data)
         t2 = threading.Thread(target=self.sending_data)
         t1.start()
@@ -86,12 +85,12 @@ class BTCPServerSocket(BTCPSocket):
         while self.connected:
             for seg in self.received:
                 print("SERVER: Received segment with seq_nr: ", (seg[:2]), "and data is: ", seg[10:])
-                print(self._window)
-                print(len(self.received))
+                # print(self._window)
+                # print(len(self.received))
                 # TODO change once we have window working
-                #ack = self.create_segment((0).to_bytes(2, 'big'), seg[:2], 0, 1, 0, self._window - len(self.received), [])
-                ack = self.create_segment((0).to_bytes(2, 'big'), seg[:2], 0, 1, 0, 1,
-                                          [])
+                ack = self.create_segment((0).to_bytes(2, 'big'), seg[:2], 0, 1, 0, self._window - len(self.received), [])
+                SYN, ACK, FIN = self.get_flags(ack[4])
+                # ack = self.create_segment((0).to_bytes(2, 'big'), seg[:2], 0, 1, 0, 1, [])
                 # Add data to processed
                 self.processed.append((seg[:2], seg[10:10+int.from_bytes(seg[6:8], 'big')]))
                 del seg

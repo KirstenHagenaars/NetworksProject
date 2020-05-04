@@ -22,6 +22,9 @@ def main():
     #print(s.prepare(y))
     s.accept()
     data = s.recv()
+    with open(args.output, 'w') as outputfile:
+        outputfile.write(data.decode()) # how do we decode?
+
     #print("received")
     #print(data.decode())
     # Clean up any state

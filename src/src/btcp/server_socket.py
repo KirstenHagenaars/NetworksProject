@@ -31,7 +31,6 @@ class BTCPServerSocket(BTCPSocket):
                 self.handshake.set()
             elif self.connected:
                 if not FIN:
-                    # Notify receiving thread
                     self.received.append(segment)
                     self.processed.append((int.from_bytes(segment[:2], 'big'), segment[10:]))
                 else:

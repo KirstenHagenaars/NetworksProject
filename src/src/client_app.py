@@ -14,11 +14,11 @@ def main():
     # Create a bTCP client socket with the given window size and timeout value
     s = BTCPClientSocket(args.window, args.timeout)
 
-    s.connect()
-    with open(args.input, 'r') as inputfile:
-        contents = inputfile.read()
-    s.send(contents.encode())
-    s.disconnect()
+    if s.connect():
+        with open(args.input, 'r') as inputfile:
+            contents = inputfile.read()
+        s.send(contents.encode())
+        s.disconnect()
     # Clean up any state
     s.close()
 

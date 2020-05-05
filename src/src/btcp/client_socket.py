@@ -74,6 +74,7 @@ class BTCPClientSocket(BTCPSocket):
             self.connected = True
             self.handshake_response = False
             print("connected!!")
+        return not self.declined
 
     # Send data originating from the application in a reliable way to the server
     def send(self, data):
@@ -133,11 +134,11 @@ class BTCPClientSocket(BTCPSocket):
             time_ = int(round(time.time() * 1000)) - time_
             if time_ >= self._timeout and nr_of_tries > 0:
                 nr_of_tries -= 1
-                lst = (segment, nr_of_tries)
+                #TODO fix in case server declines
                 self.send_segment(segment[:2], nr_of_tries)
             elif time_ >= self._timeout:
                 print("Could not connect")
-                declined = True
+                self.declined = True
 
 
     # Decrement each segments timeout every millisecond, resend max NR_OF_TRIES times if timeout reached

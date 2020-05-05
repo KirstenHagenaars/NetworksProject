@@ -1,3 +1,4 @@
+import filecmp
 import unittest
 import socket
 import time
@@ -76,16 +77,15 @@ class TestbTCPFramework(unittest.TestCase):
         self.client = BTCPClientSocket(args.window, args.timeout)
         self.client.connect()
         # client sends content to server
-        with open(args.input, 'r') as file:
-            contents = file.read()
+        with open("input.file", 'r') as inputfile:
+            contents = inputfile.read()
         self.client.send(contents.encode())
-        self.client.disconnect()
         self.client.close()
         # server receives content from client
         # TODO will it start receive everything even though the client start earlier?
         received = self.server.recv()
         # content received by server matches the content sent by client
-        self.assertEqual(contents, received)
+        self.assertTrue(contents, received)
     
     def test_flipping_network(self):
         """reliability over network with bit flips 

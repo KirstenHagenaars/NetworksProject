@@ -126,7 +126,8 @@ class BTCPClientSocket(BTCPSocket):
                 max_range = (min(window, (len(self.segments) - self.last_sent)))
                 for i in range(max_range):
                     self.last_sent = self.last_sent + 1
-                    self.send_segment(self.segments[self.last_sent][:2])
+                    if self.last_sent < len(self.segments):
+                        self.send_segment(self.segments[self.last_sent][:2])
 
     # Decrement the timeout of the connecting or terminating segment, resend max NR_OF_TRIES times if timeout reached
     def clock_disconnected(self, segment, time_, nr_of_tries):

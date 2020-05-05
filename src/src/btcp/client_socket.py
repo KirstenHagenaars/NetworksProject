@@ -3,7 +3,7 @@ from btcp.lossy_layer import LossyLayer
 from btcp.constants import *
 import numpy as np
 import time
-from threading import Lock, Event
+from threading import Lock
 import threading
 
 
@@ -21,19 +21,16 @@ class BTCPClientSocket(BTCPSocket):
         self.pending_segments = []              # Segments to be acked
         self.resent_segments = []               # Segments that need to be resent
         self.lock_segs = Lock()                 # Lock for segments
-        self.lock_acks = Lock()                 # Lock for acknowledgements
         self.lock_pending = Lock()              # Lock for pending_segments
         self.sequence_nr = np.random.bytes(2)   # The sequence number, 2 bytes
         self.last_sent = 0                      # The index of last sent segment
         self.sequence_nr_server = None          # Sequence_nr of the server
-        self.ack_nr = None                      # Ack_nr
-        self.nr_acked = 0
+        self.nr_acked = 0 # Do we need this?
         self.window_server = None               # Window buffer of the server
         self.init_seq_nr = self.increment_bytes(self.increment_bytes(self.sequence_nr))     # The initial sequence number
         # Threads:
         self.clock_conn = threading.Thread(target=self.clock_connected)
         self.sending = threading.Thread(target=self.sending_data)
-        # self.receiving = threading.Thread(target=self.receiving_data)
 
     # Called by the lossy layer from another thread whenever a segment arrives. 
     def lossy_layer_input(self, segment):
@@ -42,24 +39,23 @@ class BTCPClientSocket(BTCPSocket):
         if self.check_cksum(segment):
             self.sequence_nr_server = segment[:2]
             self.window_server = segment[5]
-            self.ack_nr = segment[2:4]
+            ack_nr = segment[2:4]
             ACK, SYN, FIN = self.get_flags(segment[4])
             # ACK should always be set for the server, but lets check it for niceness?
             if self.connected:
                 if ACK and not FIN:
-                    print("CLIENT: Received an ACK: ", self.ack_nr)
+                    print("CLIENT: Received an ACK: ", ack_nr)
                     # Remove acknowledged segment from the pending segments
                     self.lock_pending.acquire()
-                    self.pending_segments = [seg for seg in self.pending_segments if seg[0] != self.ack_nr]
-                    self.nr_acked += 1
+                    self.pending_segments = [seg for seg in self.pending_segments if seg[0] != ack_nr]
+                    self.nr_acked += 1 # Do we need this?
                     self.lock_pending.release()
                 elif ACK and FIN:
                     # Signal disconnect
                     self.termination_response = True
-            elif ACK and SYN and self.increment_bytes(self.sequence_nr) == self.ack_nr:
+            elif ACK and SYN and self.increment_bytes(self.sequence_nr) == ack_nr:
                 # Server has done its part in the three-way handshake
                 self.handshake_response = True
-            #print(self.nr_acked)
 
     # Perform a three-way handshake to establish a connection
     def connect(self):
@@ -75,7 +71,6 @@ class BTCPClientSocket(BTCPSocket):
             # Send final segment of the handshake
             self._lossy_layer.send_segment(self.create_segment(
                 self.sequence_nr, self.increment_bytes(self.sequence_nr_server), 1, 0, 0, self._window, []))
-            # print(int.from_bytes(self.sequence_nr_server, 'big'), " is the seq nr of the server")
             self.connected = True
             self.handshake_response = False
             print("connected!!")

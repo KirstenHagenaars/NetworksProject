@@ -1,6 +1,3 @@
-from btcp.constants import *
-
-
 class BTCPSocket:
     def __init__(self, window, timeout):
         self._window = window
@@ -31,10 +28,6 @@ class BTCPSocket:
         flags = flags.to_bytes(1, 'big')
         # Compute data length in bytes, should be 2 bytes
         dataLength = len(data)
-        # Not sure anymore if we need padding:
-        # if dataLength < PAYLOAD_SIZE:
-        # diff = PAYLOAD_SIZE - dataLength
-        # data += bytes(diff)
         # Convert dataLength to 2 bytes
         dataLength = dataLength.to_bytes(2, 'big')
         # Create segment

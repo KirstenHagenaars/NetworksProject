@@ -23,7 +23,7 @@ def main():
     s.accept()
     data = s.recv()
     with open(args.output, 'w') as outputfile:
-        outputfile.write(data.decode()) # how do we decode?
+        outputfile.write(data.decode())  # how do we decode?
 
     #print("received")
     #print(data.decode())

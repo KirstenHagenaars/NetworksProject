@@ -16,6 +16,7 @@ class BTCPClientSocket(BTCPSocket):
         self.connected = False                  # Keeps track of the state, connected or not
         self.handshake_response = False         # Is true once server has done its part in the handshake
         self.termination_response = False       # Is true once server has done its part in termination
+        self.declined = False                   # Is true if server does not respond to the client in handshake
         self.segments = []                      # Segments to be sent
         self.pending_segments = []              # Segments to be acked
         self.resent_segments = []               # Segments that need to be resent
@@ -68,15 +69,16 @@ class BTCPClientSocket(BTCPSocket):
         thread1 = threading.Thread(target=self.clock_disconnected, args=(segment1, int(round(time.time() * 1000)), NR_OF_TRIES))
         thread1.start()
         thread1.join()
-        # TODO check if declined
-        self.sequence_nr = self.increment_bytes(self.sequence_nr)
-        # Send final segment of the handshake
-        self._lossy_layer.send_segment(self.create_segment(
-            self.sequence_nr, self.increment_bytes(self.sequence_nr_server), 1, 0, 0, self._window, []))
-        # print(int.from_bytes(self.sequence_nr_server, 'big'), " is the seq nr of the server")
-        self.connected = True
-        self.handshake_response = False
-        print("connected!!")
+        # TODO should we have this if-statement also in send and disconnect so they dont do anything if handshake failed?
+        if not self.declined:
+            self.sequence_nr = self.increment_bytes(self.sequence_nr)
+            # Send final segment of the handshake
+            self._lossy_layer.send_segment(self.create_segment(
+                self.sequence_nr, self.increment_bytes(self.sequence_nr_server), 1, 0, 0, self._window, []))
+            # print(int.from_bytes(self.sequence_nr_server, 'big'), " is the seq nr of the server")
+            self.connected = True
+            self.handshake_response = False
+            print("connected!!")
 
     # Send data originating from the application in a reliable way to the server
     def send(self, data):
@@ -93,6 +95,7 @@ class BTCPClientSocket(BTCPSocket):
         self.clock_conn.start()
         self.sending.join()
         self.clock_conn.join()
+        print("stop clock")
 
     # Slice data into segments of size PAYLOAD_SIZE
     def slice_data(self, data):
@@ -109,7 +112,6 @@ class BTCPClientSocket(BTCPSocket):
             self.last_sent += 1
         self.lock_segs.release()
         # Start the clock
-
         # Send all remaining segments
         while self.last_sent < len(self.segments) or self.resent_segments or self.pending_segments:  # while there is still stuff to send
             window = self.window_server - len(self.pending_segments)-1
@@ -131,9 +133,7 @@ class BTCPClientSocket(BTCPSocket):
 
     # Decrement the timeout of the connecting or terminating segment, resend max NR_OF_TRIES times if timeout reached
     def clock_disconnected(self, segment, time_, nr_of_tries):
-        print("clock disconnected started")
-        declined = False
-        while not declined and not self.handshake_response and not self.termination_response:
+        while not self.declined and not self.handshake_response and not self.termination_response:
             time.sleep(.005)
             time_ = int(round(time.time() * 1000)) - time_
             if time_ >= self._timeout and nr_of_tries > 0:
@@ -143,6 +143,7 @@ class BTCPClientSocket(BTCPSocket):
             elif time_ >= self._timeout:
                 print("Could not connect")
                 declined = True
+
 
     # Decrement each segments timeout every millisecond, resend max NR_OF_TRIES times if timeout reached
     def clock_connected(self):
@@ -186,7 +187,7 @@ class BTCPClientSocket(BTCPSocket):
         thread.join()
         print('END')
         self.connected = False
-        print("connection closed succesfully")
+        print("connection closed")
 
     # Clean up any state
     def close(self):

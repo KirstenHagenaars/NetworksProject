@@ -22,8 +22,8 @@ def main():
     with open(args.input, 'r') as inputfile:
         contents = inputfile.read()
     s.send(contents.encode())
-    # s.disconnect()
+    s.disconnect()
     # Clean up any state
-    # s.close()
+    s.close()
 
 main()

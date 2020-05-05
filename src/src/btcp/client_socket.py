@@ -138,7 +138,7 @@ class BTCPClientSocket(BTCPSocket):
             if time_ >= self._timeout and nr_of_tries > 0:
                 nr_of_tries -= 1
                 lst = (segment, nr_of_tries)
-                self.send_segment(segment, nr_of_tries)
+                self.send_segment(segment[:2], nr_of_tries)
             elif time_ >= self._timeout:
                 print("Could not connect")
                 declined = True
@@ -181,7 +181,9 @@ class BTCPClientSocket(BTCPSocket):
         # Start clock thread to resend segment if necessary
         thread = threading.Thread(target=self.clock_disconnected, args=(segment, int(round(time.time() * 1000)), NR_OF_TRIES))
         thread.start()
+        print('START')
         thread.join()
+        print('END')
         self.connected = False
         print("connection closed succesfully")
 

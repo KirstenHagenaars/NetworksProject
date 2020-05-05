@@ -42,6 +42,7 @@ class BTCPServerSocket(BTCPSocket):
                 if not FIN:
                     # Notify receiving thread
                     self.received.append(segment)
+                    self.processed.append((int.from_bytes(segment[:2], 'big'), segment[10:]))
                 else:
                     # Start termination
                     self.connected = False
@@ -82,7 +83,11 @@ class BTCPServerSocket(BTCPSocket):
         # Now termination has started
         self.close_connection()
         # Sort the segments and concatenate the data
-        return self.prepare(self.sort(self.processed))
+        self.processed = list(set(self.processed))  # remove all the duplicates
+        self.processed = b''.join([text for (seq_num, text) in sorted(self.processed)])  # sort and join all bytes
+        print(self.processed)
+        return self.processed
+        # return self.prepare(self.sort(self.processed))
 
     # Receiving thread:
     # Wait for a segment from lossy layer, create ACK segment, save into received list

@@ -7,8 +7,8 @@ import numpy as np
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("-w", "--window", help="Define bTCP window size", type=int, default=10)
-    parser.add_argument("-t", "--timeout", help="Define bTCP timeout in milliseconds", type=int, default=10)
+    parser.add_argument("-w", "--window", help="Define bTCP window size", type=int, default=5)
+    parser.add_argument("-t", "--timeout", help="Define bTCP timeout in milliseconds", type=int, default=100)
     parser.add_argument("-o", "--output", help="Where to store the file", default="output.file")
     args = parser.parse_args()
 
@@ -22,11 +22,13 @@ def main():
     #print(s.prepare(y))
     s.accept()
     data = s.recv()
-    print("received")
-    print(data.decode())
+    with open(args.output, 'w') as outputfile:
+        outputfile.write(data.decode())  # how do we decode?
+
+    #print("received")
+    #print(data.decode())
     # Clean up any state
     s.close()
-    #TODO they might want us to store the file in "output.file"
 
 
 main()

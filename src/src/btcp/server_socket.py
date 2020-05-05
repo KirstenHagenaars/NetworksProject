@@ -96,7 +96,7 @@ class BTCPServerSocket(BTCPSocket):
         while self.connected:
             if self.received:
                 segment = self.received.pop(0)
-                ack = self.create_segment((0).to_bytes(2, 'big'), segment[:2], 0, 1, 0,
+                ack = self.create_segment((0).to_bytes(2, 'big'), segment[:2], 1, 0, 0,
                                           max(0, (self._window - len(self.received))), [])
                 self._lossy_layer.send_segment(ack)
 

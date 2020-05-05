@@ -42,7 +42,7 @@ class BTCPClientSocket(BTCPSocket):
             self.sequence_nr_server = segment[:2]
             self.window_server = segment[5]
             self.ack_nr = segment[2:4]
-            SYN, ACK, FIN = self.get_flags(segment[4])
+            ACK, SYN, FIN = self.get_flags(segment[4])
             # ACK should always be set for the server, but lets check it for niceness?
             if self.connected:
                 if ACK and not FIN:

@@ -24,6 +24,7 @@ class BTCPServerSocket(BTCPSocket):
         segment = segment[0]
         if self.check_cksum(segment):
             self.sequence_nr_client = segment[:2]
+            print(self.sequence_nr_client)
             ACK, SYN, FIN = self.get_flags(segment[4])
             if not self.connected and (SYN or ACK):
                 if ACK and self.increment_bytes(self.sequence_nr) == segment[2:4]:

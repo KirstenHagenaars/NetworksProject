@@ -41,7 +41,6 @@ class BTCPClientSocket(BTCPSocket):
             self.window_server = segment[5]
             ack_nr = segment[2:4]
             ACK, SYN, FIN = self.get_flags(segment[4])
-            # ACK should always be set for the server, but lets check it for niceness?
             if self.connected:
                 if ACK and not FIN:
                     print("CLIENT: Received an ACK: ", ack_nr)
@@ -65,7 +64,6 @@ class BTCPClientSocket(BTCPSocket):
         thread1 = threading.Thread(target=self.clock_disconnected, args=(segment1, int(round(time.time() * 1000)), NR_OF_TRIES))
         thread1.start()
         thread1.join()
-        # TODO should we have this if-statement also in send and disconnect so they dont do anything if handshake failed?
         if not self.declined:
             self.sequence_nr = self.increment_bytes(self.sequence_nr)
             # Send final segment of the handshake
@@ -123,9 +121,9 @@ class BTCPClientSocket(BTCPSocket):
             elif self.last_sent < len(self.segments):
                 max_range = (min(window, (len(self.segments) - self.last_sent)))
                 for i in range(max_range):
-                    self.last_sent = self.last_sent + 1
                     if self.last_sent < len(self.segments):
                         self.send_segment(self.segments[self.last_sent][:2])
+                    self.last_sent = self.last_sent + 1
 
     # Decrement the timeout of the connecting or terminating segment, resend max NR_OF_TRIES times if timeout reached
     def clock_disconnected(self, segment, time_, nr_of_tries):
@@ -169,6 +167,7 @@ class BTCPClientSocket(BTCPSocket):
         index = int.from_bytes(seq_nr, 'big') - int.from_bytes(self.init_seq_nr, 'big')
         segment = self.segments[index]
         self.pending_segments.append([seq_nr, int(round(time.time() * 1000)), 0,  nr_of_tries])
+        print(seq_nr)
         self._lossy_layer.send_segment(segment)
 
     # Perform a handshake to terminate a connection

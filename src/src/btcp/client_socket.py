@@ -134,8 +134,7 @@ class BTCPClientSocket(BTCPSocket):
             time_ = int(round(time.time() * 1000)) - time_
             if time_ >= self._timeout and nr_of_tries > 0:
                 nr_of_tries -= 1
-                #TODO fix in case server declines
-                self.send_segment(segment[:2], nr_of_tries)
+                self._lossy_layer.send_segment(segment)
             elif time_ >= self._timeout:
                 print("Could not connect")
                 self.declined = True

@@ -19,14 +19,12 @@ class BTCPSocket:
     def check_cksum(self, segment):
         return 0 == self.in_cksum(segment)
 
-    # Receives data for 1 segment (max 1008 bytes), and all other segment values
-    # all parameters are in bytes, except for ACK, SYN and FIN, which are booleans
-    # returns entire segment (array of bytes)
+    # Receives data for 1 segment (max 1008 bytes), and other segment values
+    # Returns entire segment (array of bytes)
     def create_segment(self, sequenceNr, ackNr, ACK, SYN, FIN, window, data):
         # Flags are represented as 0 0 0 0 0 ACK SYN FIN
         flags = ACK*4+SYN*2+FIN*1
         flags = flags.to_bytes(1, 'big')
-        # Compute data length in bytes, should be 2 bytes
         dataLength = len(data)
         # Convert dataLength to 2 bytes
         dataLength = dataLength.to_bytes(2, 'big')
@@ -43,6 +41,6 @@ class BTCPSocket:
         increasedValue = int.from_bytes(bytes, 'big') + 1
         return increasedValue.to_bytes(2, 'big')
 
-    # Takes flags byte and returns 3 booleans corresponding to the flags, in order ACK SYN FIN
+    # Takes flags byte and returns 3 booleans corresponding to the flags, in the order of ACK SYN FIN
     def get_flags(self, flags):
         return flags&4 != 0, flags&2 != 0, flags&1 != 0

@@ -18,23 +18,22 @@ class BTCPClientSocket(BTCPSocket):
         self.termination_response = False       # Is true once server has done its part in termination
         self.declined = False                   # Is true if server does not respond to the client in handshake
         self.segments = []                      # Segments to be sent
-        self.pending_segments = []              # Segments to be acked
+        self.pending_segments = []              # Segments to be acknowledged
         self.resent_segments = []               # Segments that need to be resent
         self.lock_segs = Lock()                 # Lock for segments
         self.lock_pending = Lock()              # Lock for pending_segments
         self.sequence_nr = np.random.bytes(2)   # The sequence number, 2 bytes
         self.last_sent = 0                      # The index of last sent segment
         self.sequence_nr_server = None          # Sequence_nr of the server
-        self.nr_acked = 0 # Do we need this?
-        self.window_server = None               # Window buffer of the server
-        self.init_seq_nr = self.increment_bytes(self.increment_bytes(self.sequence_nr))     # The initial sequence number
+        self.window_server = None               # Window size of the server
+        # The sequence number when the send function starts
+        self.init_seq_nr = self.increment_bytes(self.increment_bytes(self.sequence_nr))
         # Threads:
         self.clock_conn = threading.Thread(target=self.clock_connected)
         self.sending = threading.Thread(target=self.sending_data)
 
     # Called by the lossy layer from another thread whenever a segment arrives. 
     def lossy_layer_input(self, segment):
-        # look for corresponding event in array, awaken event
         segment = segment[0]
         if self.check_cksum(segment):
             self.sequence_nr_server = segment[:2]
@@ -43,11 +42,9 @@ class BTCPClientSocket(BTCPSocket):
             ACK, SYN, FIN = self.get_flags(segment[4])
             if self.connected:
                 if ACK and not FIN:
-                    print("CLIENT: Received an ACK: ", ack_nr)
-                    # Remove acknowledged segment from the pending segments
+                    # Remove acknowledged segment from the pending_segments
                     self.lock_pending.acquire()
                     self.pending_segments = [seg for seg in self.pending_segments if seg[0] != ack_nr]
-                    self.nr_acked += 1 # Do we need this?
                     self.lock_pending.release()
                 elif ACK and FIN:
                     # Signal disconnect
@@ -61,7 +58,8 @@ class BTCPClientSocket(BTCPSocket):
         segment1 = self.create_segment(self.sequence_nr, (0).to_bytes(2, 'big'), 0, 1, 0, self._window, [])
         self._lossy_layer.send_segment(segment1)
         # Start clock thread to resend segment if necessary
-        thread1 = threading.Thread(target=self.clock_disconnected, args=(segment1, int(round(time.time() * 1000)), NR_OF_TRIES))
+        thread1 = threading.Thread(target=self.clock_disconnected, args=(segment1, int(round(time.time() * 1000)),
+                                                                         NR_OF_TRIES))
         thread1.start()
         thread1.join()
         if not self.declined:
@@ -71,7 +69,8 @@ class BTCPClientSocket(BTCPSocket):
                 self.sequence_nr, self.increment_bytes(self.sequence_nr_server), 1, 0, 0, self._window, []))
             self.connected = True
             self.handshake_response = False
-            print("connected!!")
+            print("Connected")
+        # Returns true if connection was succesful
         return not self.declined
 
     # Send data originating from the application in a reliable way to the server
@@ -83,13 +82,13 @@ class BTCPClientSocket(BTCPSocket):
             self.sequence_nr = self.increment_bytes(self.sequence_nr)
             seg = self.create_segment(self.sequence_nr, (0).to_bytes(2, 'big'), 0, 0, 0, 0, i)
             self.segments.append(seg)
-        print("we need to send ", len(self.segments), " segments")
+        print("We need to send ", len(self.segments), " segments")
         # Send segments
         self.sending.start()
         self.clock_conn.start()
         self.sending.join()
         self.clock_conn.join()
-        print("stop clock")
+        print("All data has been sent")
 
     # Slice data into segments of size PAYLOAD_SIZE
     def slice_data(self, data):
@@ -107,7 +106,7 @@ class BTCPClientSocket(BTCPSocket):
         self.lock_segs.release()
         # Start the clock
         # Send all remaining segments
-        while self.last_sent < len(self.segments) or self.resent_segments or self.pending_segments:  # while there is still stuff to send
+        while self.last_sent < len(self.segments) or self.resent_segments or self.pending_segments:
             window = self.window_server - len(self.pending_segments)-1
             # Segments to be resent have a priority
             if self.resent_segments:
@@ -115,9 +114,8 @@ class BTCPClientSocket(BTCPSocket):
                 for i in range(max_range):
                     # TODO decrement nr of tries
                     resent = self.resent_segments.pop(0)
-                    print("resent: ", resent[0])
                     self.send_segment(resent[0], resent[2])
-            # No segments to be resend, we can send fresh segments
+            # If no segments to be resend, we can send fresh segments
             elif self.last_sent < len(self.segments):
                 max_range = (min(window, (len(self.segments) - self.last_sent)))
                 for i in range(max_range):
@@ -125,7 +123,8 @@ class BTCPClientSocket(BTCPSocket):
                         self.send_segment(self.segments[self.last_sent][:2])
                     self.last_sent = self.last_sent + 1
 
-    # Decrement the timeout of the connecting or terminating segment, resend max NR_OF_TRIES times if timeout reached
+    # Decrement the timeout of segment, resend max NR_OF_TRIES times  when a timeout is reached
+    # This function is only used in connection establishment and connection termination
     def clock_disconnected(self, segment, time_, nr_of_tries):
         while not self.declined and not self.handshake_response and not self.termination_response:
             time.sleep(.005)
@@ -137,10 +136,8 @@ class BTCPClientSocket(BTCPSocket):
                 print("Could not connect")
                 self.declined = True
 
-
-    # Decrement each segments timeout every millisecond, resend max NR_OF_TRIES times if timeout reached
+    # Decrement each segments timeout every millisecond, resend max NR_OF_TRIES times when a timeout is reached
     def clock_connected(self):
-        print("clock connected started")
         while self.pending_segments or self.resent_segments or self.last_sent < len(self.segments):
             # Every 5 millis, decrease the time of each pending segment
             # Tuple[0] = seq_nr, tuple[1] = orig_time, tuple[2] = timeout, tuple[3] = nr_or_tries
@@ -148,10 +145,7 @@ class BTCPClientSocket(BTCPSocket):
             sent = []
             self.lock_pending.acquire()
             for tuple in self.pending_segments:
-                # print("segment ", tuple[0])
-                # print("timeout original: ", tuple[2])
                 tuple[2] = int(round(time.time() * 1000)) - tuple[1]
-                # print("new timeout: ", tuple[2])
                 if tuple[2] >= self._timeout and tuple[3] > 0:
                     self.resent_segments.append(tuple)
                 elif tuple[2] >= self._timeout:
@@ -161,27 +155,24 @@ class BTCPClientSocket(BTCPSocket):
             self.pending_segments = sent
             self.lock_pending.release()
 
-    # Send segment and save it into
+    # Send segment and save it into pending_segments
     def send_segment(self, seq_nr, nr_of_tries=NR_OF_TRIES):
         # TODO check bounds?
         index = int.from_bytes(seq_nr, 'big') - int.from_bytes(self.init_seq_nr, 'big')
         segment = self.segments[index]
         self.pending_segments.append([seq_nr, int(round(time.time() * 1000)), 0,  nr_of_tries])
-        print(seq_nr)
         self._lossy_layer.send_segment(segment)
 
-    # Perform a handshake to terminate a connection
+    # Perform a handshake to terminate the connection
     def disconnect(self):
         segment = self.create_segment(self.sequence_nr, (0).to_bytes(2, 'big'), 0, 0, 1, self._window, [])
         self._lossy_layer.send_segment(segment)
         # Start clock thread to resend segment if necessary
         thread = threading.Thread(target=self.clock_disconnected, args=(segment, int(round(time.time() * 1000)), NR_OF_TRIES))
         thread.start()
-        print('START')
         thread.join()
-        print('END')
         self.connected = False
-        print("connection closed")
+        print("Connection closed")
 
     # Clean up any state
     def close(self):

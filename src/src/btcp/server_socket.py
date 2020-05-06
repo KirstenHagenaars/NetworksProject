@@ -15,27 +15,29 @@ class BTCPServerSocket(BTCPSocket):
         self.received = []                        # Received segments that still need to be processed and acknowledged
         self.processed = []                       # List of (sequenceNR, data) tuples, that have been received
         self.handshake = Event()                  # Set when client requests a handshake
-        self.end_handshake = False                # True when the last segment of handshake arrived from client's side
-        self.sequence_nr = np.random.bytes(2)
-        self.sequence_nr_client = None
+        self.end_handshake = False                # True when the last segment of handshake has arrived
+        self.sequence_nr = np.random.bytes(2)     # Server's sequence number
+        self.sequence_nr_client = None            # Client's sequence number
 
     # Called by the lossy layer from another thread whenever a segment arrives
     def lossy_layer_input(self, segment):
         segment = segment[0]
         if self.check_cksum(segment):
             self.sequence_nr_client = segment[:2]
-            print(self.sequence_nr_client)
             ACK, SYN, FIN = self.get_flags(segment[4])
             if not self.connected and (SYN or ACK):
+                # Perform handshake
                 if ACK and self.increment_bytes(self.sequence_nr) == segment[2:4]:
                     self.end_handshake = True
                 self.handshake.set()
             elif self.connected:
                 if not FIN:
+                    # Process segment
                     self.received.append(segment)
                     self.processed.append((int.from_bytes(segment[:2], 'big'), segment[10:]))
                 else:
                     # Start termination
+                    print("All data has arrived")
                     self.connected = False
 
     # Wait for the client to initiate a three-way handshake
@@ -51,7 +53,7 @@ class BTCPServerSocket(BTCPSocket):
             self.handshake.clear()
         self.sequence_nr = self.increment_bytes(self.sequence_nr)
         self.connected = True
-        print("connected!!")
+        print("Connected")
 
     # Send any incoming data to the application layer
     def recv(self):
@@ -61,15 +63,14 @@ class BTCPServerSocket(BTCPSocket):
         t1.join()
         # Now termination has started
         self.close_connection()
-        # Sort the segments and concatenate the data
-        self.processed = list(set(self.processed))  # remove all the duplicates
-        self.processed = b''.join([text for (seq_num, text) in sorted(self.processed)])  # sort and join all bytes
-        print(self.processed)
+        print("Connection closed")
+        # Remove duplicates, sort the segments and concatenate the data
+        self.processed = list(set(self.processed))
+        self.processed = b''.join([text for (seq_num, text) in sorted(self.processed)])
         return self.processed
 
     # Receiving thread:
-    # Wait for a segment from lossy layer, create ACK segment, save into received list
-    # and signal to the sending thread that there is an ack
+    # Wait for a segment from lossy layer, send an ACK segment in response
     def receiving_data(self):
         while self.connected:
             if self.received:

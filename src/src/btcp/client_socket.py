@@ -59,7 +59,7 @@ class BTCPClientSocket(BTCPSocket):
         self._lossy_layer.send_segment(segment1)
         # Start clock thread to resend segment if necessary
         thread1 = threading.Thread(target=self.clock_disconnected, args=(
-            segment1, int(round(time.time() * 1000)), 0, NR_OF_TRIES))
+            segment1, int(round(time.time() * 1000)), 0, NR_OF_TRIES_HANDSHAKE))
         thread1.start()
         thread1.join()
         if not self.declined:
@@ -175,7 +175,7 @@ class BTCPClientSocket(BTCPSocket):
         self._lossy_layer.send_segment(segment)
         # Start clock thread to resend segment if necessary
         thread = threading.Thread(target=self.clock_disconnected, args=(
-            segment, int(round(time.time() * 1000)), 0, NR_OF_TRIES))
+            segment, int(round(time.time() * 1000)), 0, NR_OF_TRIES_HANDSHAKE))
         thread.start()
         thread.join()
         self.connected = False

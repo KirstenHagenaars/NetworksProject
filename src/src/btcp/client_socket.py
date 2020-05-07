@@ -5,7 +5,9 @@ import numpy as np
 import time
 from threading import Lock
 import threading
-
+from diffiehellman.diffiehellman import DiffieHellman
+from cryptography.fernet import Fernet
+import base64
 
 # bTCP client socket
 # A client application makes use of the services provided by bTCP by calling connect, send, disconnect, and close
@@ -31,6 +33,17 @@ class BTCPClientSocket(BTCPSocket):
         # Threads:
         self.clock_conn = threading.Thread(target=self.clock_connected)
         self.sending = threading.Thread(target=self.sending_data)
+        # Diffie-Hellman:
+        self.DH = DiffieHellman(key_length=200)
+        self.DH.generate_private_key()
+        self.DH.generate_public_key()
+        #message = "my deep dark secret".encode()
+        #print(len(str(self.DH.public_key)))
+        #print((self.DH.public_key.to_bytes(3*PAYLOAD_SIZE, 'big')[:32]))
+        #f = Fernet(base64.b64encode(self.DH.public_key.to_bytes(3000, 'big')[:32]))
+        #encrypted = f.encrypt(message)
+        #print(encrypted)
+        #print(f.decrypt(encrypted))
 
     # Called by the lossy layer from another thread whenever a segment arrives. 
     def lossy_layer_input(self, segment):
@@ -70,11 +83,17 @@ class BTCPClientSocket(BTCPSocket):
             self.connected = True
             self.handshake_response = False
             print("Connected")
-        # Returns true if connection was succesful
+        # Returns true if connection was successful
         return not self.declined
 
     # Send data originating from the application in a reliable way to the server
     def send(self, data):
+        # TODO send public key in 3 segments
+        # TODO receive servers public key and compute shared secret key
+        #self.DH.generate_shared_secret(...)
+        # TODO encrypt data
+        #f = Fernet(base64.b64encode(self.DH.shared_key.to_bytes(3000..., 'big')[:32]))
+        #data = f.encrypt(data)
         # Chop data into segments of size PAYLOAD_SIZE and save into segments list
         payload = list(self.slice_data(data))
         # Add headers to all segments in the list
@@ -108,12 +127,11 @@ class BTCPClientSocket(BTCPSocket):
         # Start the clock
         # Send all remaining segments
         while self.last_sent < len(self.segments) or self.resent_segments or self.pending_segments:
-            window = self.window_server - len(self.pending_segments)-1
+            window = self.window_server - len(self.pending_segments)
             # Segments to be resent have a priority
             if self.resent_segments:
                 max_range = (min(window, len(self.resent_segments)))
                 for i in range(max_range):
-                    # TODO decrement nr of tries
                     resent = self.resent_segments.pop(0)
                     self.send_segment(resent[0])
             # If no segments to be resend, we can send fresh segments

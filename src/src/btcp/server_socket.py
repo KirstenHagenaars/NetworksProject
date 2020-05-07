@@ -4,6 +4,9 @@ from btcp.constants import *
 from threading import Event
 import threading
 import numpy as np
+from diffiehellman.diffiehellman import DiffieHellman
+from cryptography.fernet import Fernet
+import base64
 
 # The bTCP server socket
 # A server application makes use of the services provided by bTCP by calling accept, recv, and close
@@ -18,6 +21,9 @@ class BTCPServerSocket(BTCPSocket):
         self.end_handshake = False                # True when the last segment of handshake has arrived
         self.sequence_nr = np.random.bytes(2)     # Server's sequence number
         self.sequence_nr_client = None            # Client's sequence number
+        self.DH = DiffieHellman(key_length=200)
+        self.DH.generate_private_key()
+        self.DH.generate_public_key()
 
     # Called by the lossy layer from another thread whenever a segment arrives
     def lossy_layer_input(self, segment):
@@ -57,6 +63,7 @@ class BTCPServerSocket(BTCPSocket):
 
     # Send any incoming data to the application layer
     def recv(self):
+        # TODO respond to first 3 segments with public key
         t1 = threading.Thread(target=self.receiving_data)
         t1.start()
         # Wait for termination to start
@@ -65,8 +72,13 @@ class BTCPServerSocket(BTCPSocket):
         self.close_connection()
         print("Connection closed")
         # Remove duplicates, sort the segments and concatenate the data
-        self.processed = list(set(self.processed))
-        self.processed = b''.join([text for (seq_num, text) in sorted(self.processed)])
+        self.processed = sorted(list(set(self.processed)))
+        # TODO retrieve client's public key from first 3 segments and compute shared key
+        self.processed = b''.join([text for (seq_num, text) in self.processed])
+        # TODO decrypt
+        # self.DH.generate_shared_secret(...)
+        # f = Fernet(base64.b64encode(self.DH.shared_key.to_bytes(3000..., 'big')[:32]))
+        # self.processed = f.decrypt(self.processed)
         return self.processed
 
     # Receiving thread:

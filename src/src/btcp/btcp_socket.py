@@ -1,3 +1,5 @@
+from btcp.constants import *
+
 class BTCPSocket:
     def __init__(self, window, timeout):
         self._window = window
@@ -8,8 +10,11 @@ class BTCPSocket:
     def in_cksum(data):
         sum = 0
         for i in range(0, len(data), 2):
-            # Take 2 bytes and add them to the sum
-            x = data[i] * 256 + data[i + 1]
+            # Take 2 bytes and add them to the sum, take only final byte in case of uneven nr of bytes
+            if i == len(data)-1:
+                x = data[i] * 256
+            else:
+                x = data[i] * 256 + data[i + 1]
             intermediate = sum + x
             # Wraparound carry
             sum = (intermediate & 0xffff) + (intermediate >> 16)
@@ -35,6 +40,11 @@ class BTCPSocket:
         # Insert checksum
         segment = sequenceNr + ackNr + flags + window.to_bytes(1, 'big') + dataLength + checksum.to_bytes(2, 'big') + bytes(data)
         return segment
+
+    # Slice data into segments of size PAYLOAD_SIZE
+    def slice_data(self, data):
+        for i in range(0, len(data), PAYLOAD_SIZE):
+            yield data[i:i + PAYLOAD_SIZE]
 
     # Takes array of 2 bytes and increments its value by 1, useful for sequenceNr
     def increment_bytes(self, bytes):

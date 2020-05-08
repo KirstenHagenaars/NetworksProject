@@ -12,9 +12,11 @@ import base64
 # bTCP client socket
 # A client application makes use of the services provided by bTCP by calling connect, send, disconnect, and close
 class BTCPClientSocket(BTCPSocket):
-    def __init__(self, window, timeout):
+    def __init__(self, window, timeout, encryption_mode):
         super().__init__(window, timeout)
         self._lossy_layer = LossyLayer(self, CLIENT_IP, CLIENT_PORT, SERVER_IP, SERVER_PORT)
+        self.encryption_mode = encryption_mode  # Is true if encryption should be used
+        self.key_exchange = False               # Is true when the key exchange is happening
         self.connected = False                  # Keeps track of the state, connected or not
         self.handshake_response = False         # Is true once server has done its part in the handshake
         self.termination_response = False       # Is true once server has done its part in termination
@@ -30,20 +32,12 @@ class BTCPClientSocket(BTCPSocket):
         self.window_server = None               # Window size of the server
         # The sequence number when the send function starts
         self.init_seq_nr = self.increment_bytes(self.increment_bytes(self.sequence_nr))
-        # Threads:
-        self.clock_conn = threading.Thread(target=self.clock_connected)
-        self.sending = threading.Thread(target=self.sending_data)
         # Diffie-Hellman:
-        self.DH = DiffieHellman(key_length=200)
-        self.DH.generate_private_key()
-        self.DH.generate_public_key()
-        #message = "my deep dark secret".encode()
-        #print(len(str(self.DH.public_key)))
-        #print((self.DH.public_key.to_bytes(3*PAYLOAD_SIZE, 'big')[:32]))
-        #f = Fernet(base64.b64encode(self.DH.public_key.to_bytes(3000, 'big')[:32]))
-        #encrypted = f.encrypt(message)
-        #print(encrypted)
-        #print(f.decrypt(encrypted))
+        if self.encryption_mode:
+            self.DH = DiffieHellman(key_length=200)
+            self.DH.generate_private_key()
+            self.DH.generate_public_key()
+            self.public_key_server = []
 
     # Called by the lossy layer from another thread whenever a segment arrives. 
     def lossy_layer_input(self, segment):
@@ -59,6 +53,8 @@ class BTCPClientSocket(BTCPSocket):
                     self.lock_pending.acquire()
                     self.pending_segments = [seg for seg in self.pending_segments if seg[0] != ack_nr]
                     self.lock_pending.release()
+                    if self.key_exchange:
+                        self.public_key_server.append((ack_nr, segment[10:]))
                 elif ACK and FIN:
                     # Signal disconnect
                     self.termination_response = True
@@ -68,7 +64,9 @@ class BTCPClientSocket(BTCPSocket):
 
     # Perform a three-way handshake to establish a connection
     def connect(self):
-        segment1 = self.create_segment(self.sequence_nr, (0).to_bytes(2, 'big'), 0, 1, 0, self._window, [])
+        # Send along encryption mode
+        segment1 = self.create_segment(self.sequence_nr, (0).to_bytes(2, 'big'), 0, 1, 0, self._window,
+                                       self.encryption_mode.to_bytes(1, 'big'))
         self._lossy_layer.send_segment(segment1)
         # Start clock thread to resend segment if necessary
         thread1 = threading.Thread(target=self.clock_disconnected, args=(
@@ -87,33 +85,39 @@ class BTCPClientSocket(BTCPSocket):
         return not self.declined
 
     # Send data originating from the application in a reliable way to the server
-    def send(self, data):
-        # TODO send public key in 3 segments
-        # TODO receive servers public key and compute shared secret key
-        #self.DH.generate_shared_secret(...)
-        # TODO encrypt data
-        #f = Fernet(base64.b64encode(self.DH.shared_key.to_bytes(3000..., 'big')[:32]))
-        #data = f.encrypt(data)
+    def send(self, data, key_exchange):
+        self.key_exchange = key_exchange
+        if not self.key_exchange and self.encryption_mode:
+            # Encrypt data
+            f = Fernet(base64.b64encode(self.DH.shared_key.encode()[:32]))
+            data = f.encrypt(data)
         # Chop data into segments of size PAYLOAD_SIZE and save into segments list
         payload = list(self.slice_data(data))
         # Add headers to all segments in the list
         for i in payload:
             self.sequence_nr = self.increment_bytes(self.sequence_nr)
-            seg = self.create_segment(self.sequence_nr, (0).to_bytes(2, 'big'), 0, 0, 0, 0, i)
+            seg = self.create_segment(self.sequence_nr, (0).to_bytes(2, 'big'), 0, 0, 0, int(self.key_exchange), i)
             tuple = (seg, NR_OF_TRIES)
             self.segments.append(tuple)
         print("We need to send ", len(self.segments), " segments")
+        # Threads:
+        self.clock_conn = threading.Thread(target=self.clock_connected)
+        self.sending = threading.Thread(target=self.sending_data)
         # Send segments
         self.sending.start()
         self.clock_conn.start()
         self.sending.join()
         self.clock_conn.join()
-        print("All data has been sent")
 
-    # Slice data into segments of size PAYLOAD_SIZE
-    def slice_data(self, data):
-        for i in range(0, len(data), PAYLOAD_SIZE):
-            yield data[i:i + PAYLOAD_SIZE]
+        if self.key_exchange:
+            public_key_server_bytes = b''.join([text for (seq_num, text) in sorted(list(set(self.public_key_server)))])
+            self.DH.generate_shared_secret(int(public_key_server_bytes.decode()))
+            self.segments = []
+            self.last_sent = 0
+            self.init_seq_nr = self.increment_bytes(self.sequence_nr)
+            print("Key exchange successful")
+        else:
+            print("All data has been sent")
 
     # Sending thread: Start the clock and send all the data
     def sending_data(self):
@@ -182,7 +186,7 @@ class BTCPClientSocket(BTCPSocket):
         # Decrement the nr_of_tries
         new_tuple = (self.segments[index][0], self.segments[index][1]-1)
         self.segments[index] = new_tuple
-        print("sending segment ", int.from_bytes(new_tuple[0][:2], 'big'), " ", new_tuple[1], " many times.")
+        #print("sending segment ", new_tuple[0][:2], " ", new_tuple[1], " many times.")
         # Send segment
         self.pending_segments.append([seq_nr, int(round(time.time() * 1000)), 0])
         self._lossy_layer.send_segment(self.segments[index][0])
